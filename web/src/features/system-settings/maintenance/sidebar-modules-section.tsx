@@ -134,6 +134,10 @@ export function SidebarModulesSection({
         title: t('Channels'),
         description: t('Configure upstream providers and routing.'),
       },
+      cluster_status: {
+        title: t('Cluster Status'),
+        description: t('View cluster health and node availability.'),
+      },
       models: {
         title: t('Models'),
         description: t('Manage catalog visibility and pricing.'),

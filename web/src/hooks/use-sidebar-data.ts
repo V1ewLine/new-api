@@ -26,6 +26,7 @@ import {
   LayoutDashboard,
   ListTodo,
   MessageSquare,
+  Network,
   Radio,
   ServerCog,
   Settings,
@@ -123,6 +124,11 @@ export function useSidebarData(): SidebarData {
             title: t('Channels'),
             url: '/channels',
             icon: Radio,
+          },
+          {
+            title: t('Cluster Status'),
+            url: '/cluster-status',
+            icon: Network,
           },
           {
             title: t('Models'),
