@@ -1,0 +1,137 @@
+package clusterstatus
+
+import (
+	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
+	"io"
+	"net/url"
+	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+)
+
+const (
+	temporaryLinkSecretPrefix = "sgta1."
+	encryptedSecretPrefix     = "cluster-secret:v1:"
+	maxLinkSecretLength       = 16 * 1024
+	maxAgentBaseURLLength     = 2 * 1024
+	maxAgentBearerTokenLength = 8 * 1024
+)
+
+type temporaryLinkPayload struct {
+	BaseURL     string `json:"base_url"`
+	BearerToken string `json:"bearer_token"`
+}
+
+// TemporaryLinkResolver is the phase-one compatibility boundary for the
+// Agent's current URL + Bearer Token configuration. Frontend code treats the
+// complete sgta1 value as opaque. A future Agent enrollment-key resolver can
+// replace this implementation without changing controllers or stored clusters.
+type TemporaryLinkResolver struct{}
+
+func (TemporaryLinkResolver) Resolve(_ context.Context, linkSecret string) (ResolvedAgentConnection, error) {
+	linkSecret = strings.TrimSpace(linkSecret)
+	if len(linkSecret) <= len(temporaryLinkSecretPrefix) || len(linkSecret) > maxLinkSecretLength {
+		return ResolvedAgentConnection{}, ErrInvalidLinkSecret
+	}
+	if !strings.HasPrefix(linkSecret, temporaryLinkSecretPrefix) {
+		return ResolvedAgentConnection{}, ErrInvalidLinkSecret
+	}
+
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(linkSecret, temporaryLinkSecretPrefix))
+	if err != nil {
+		return ResolvedAgentConnection{}, ErrInvalidLinkSecret
+	}
+	var payload temporaryLinkPayload
+	if err := common.Unmarshal(payloadBytes, &payload); err != nil {
+		return ResolvedAgentConnection{}, ErrInvalidLinkSecret
+	}
+
+	payload.BaseURL = strings.TrimSpace(payload.BaseURL)
+	payload.BearerToken = strings.TrimSpace(payload.BearerToken)
+	if payload.BaseURL == "" || len(payload.BaseURL) > maxAgentBaseURLLength ||
+		payload.BearerToken == "" || len(payload.BearerToken) > maxAgentBearerTokenLength {
+		return ResolvedAgentConnection{}, ErrInvalidLinkSecret
+	}
+
+	parsed, err := url.Parse(payload.BaseURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return ResolvedAgentConnection{}, ErrInvalidLinkSecret
+	}
+	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return ResolvedAgentConnection{}, ErrInvalidLinkSecret
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/")
+	parsed.RawPath = ""
+	if parsed.Path == "." {
+		parsed.Path = ""
+	}
+
+	return ResolvedAgentConnection{
+		BaseURL:     strings.TrimRight(parsed.String(), "/"),
+		BearerToken: payload.BearerToken,
+	}, nil
+}
+
+type AESGCMSecretProtector struct {
+	key [sha256.Size]byte
+}
+
+func NewAESGCMSecretProtector(secret string) (*AESGCMSecretProtector, error) {
+	if strings.TrimSpace(secret) == "" {
+		return nil, errors.New("cluster secret protection key is empty")
+	}
+	return &AESGCMSecretProtector{key: sha256.Sum256([]byte(secret))}, nil
+}
+
+func (protector *AESGCMSecretProtector) Protect(plaintext string) (string, error) {
+	if protector == nil || plaintext == "" {
+		return "", errors.New("cluster secret is empty")
+	}
+	block, err := aes.NewCipher(protector.key[:])
+	if err != nil {
+		return "", err
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, aead.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+	sealed := aead.Seal(nil, nonce, []byte(plaintext), []byte(encryptedSecretPrefix))
+	payload := append(nonce, sealed...)
+	return encryptedSecretPrefix + base64.RawURLEncoding.EncodeToString(payload), nil
+}
+
+func (protector *AESGCMSecretProtector) Unprotect(ciphertext string) (string, error) {
+	if protector == nil || !strings.HasPrefix(ciphertext, encryptedSecretPrefix) {
+		return "", errors.New("invalid encrypted cluster secret")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(ciphertext, encryptedSecretPrefix))
+	if err != nil {
+		return "", errors.New("invalid encrypted cluster secret")
+	}
+	block, err := aes.NewCipher(protector.key[:])
+	if err != nil {
+		return "", err
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	if len(payload) <= aead.NonceSize() {
+		return "", errors.New("invalid encrypted cluster secret")
+	}
+	plaintext, err := aead.Open(nil, payload[:aead.NonceSize()], payload[aead.NonceSize():], []byte(encryptedSecretPrefix))
+	if err != nil {
+		return "", errors.New("unable to decrypt cluster secret")
+	}
+	return string(plaintext), nil
+}

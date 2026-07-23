@@ -354,6 +354,19 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.DELETE("/:id", controller.DeleteModelMeta)
 		}
 
+		clusterRoute := apiRouter.Group("/clusters")
+		clusterRoute.Use(middleware.AdminAuth())
+		{
+			clusterRoute.GET("/overview", controller.GetClusterOverview)
+			clusterRoute.GET("/model-options", controller.GetClusterModelOptions)
+			clusterRoute.POST("/", controller.CreateCluster)
+			clusterRoute.GET("/models/:modelId", controller.GetClusterModelDetail)
+			clusterRoute.GET("/:clusterId", controller.GetClusterDetail)
+			clusterRoute.GET("/:clusterId/telemetry/latest", controller.GetClusterLatestTelemetry)
+			clusterRoute.GET("/:clusterId/telemetry/history", controller.GetClusterTelemetryHistory)
+			clusterRoute.POST("/:clusterId/refresh", controller.RefreshClusterTelemetry)
+		}
+
 		// Deployments (model deployment management)
 		deploymentsRoute := apiRouter.Group("/deployments")
 		deploymentsRoute.Use(middleware.AdminAuth())
