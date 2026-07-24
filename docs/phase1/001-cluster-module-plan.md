@@ -37,7 +37,7 @@
 - 前端沿用 React 19、TanStack Router、React Query、Base UI、Tailwind CSS 和现有主题变量。
 - 模型复用 `models` 表的稳定 `id`，新建集群仅允许选择启用模型，同时保存模型名称快照。
 - 数据库迁移沿用 `model/main.go` 中的 GORM `AutoMigrate`，兼容 SQLite、MySQL 和 PostgreSQL。
-- Agent 当前没有 Enrollment Key，第一阶段由独立 `ClusterLinkResolver` 解析临时 `sgta1.` 不透明连接密钥。
+- Agent 当前没有 Enrollment Key，第一阶段由 Service 根据 Agent 地址和 Bearer Token 构造临时 `sgta1.` 连接密钥，再由独立 `ClusterLinkResolver` 解析。
 - 密钥由独立 `SecretProtector` 使用 `CRYPTO_SECRET` 加密，API 永不返回原文。
 - 现有 SystemTask 调度最小周期为 15 秒，不适合默认 5 秒采集，因此使用独立且支持优雅停止的轮询器。
 
@@ -49,7 +49,7 @@
 
 ## 解决方式
 
-- 将临时连接格式限制在 Resolver 内，前端和 Controller 均不解析。
+- 将临时连接格式限制在 Service 和 Resolver 内，前端只提交 Agent 地址和 Bearer Token，不构造或解析 `sgta1.`。
 - 新建隔离的 AES-GCM SecretProtector，密钥派生自已有 `CRYPTO_SECRET`。
 - 迁移只新增表，不破坏现有结构；旧版本回滚后新表保留但不会被使用。
 

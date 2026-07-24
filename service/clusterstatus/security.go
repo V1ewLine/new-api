@@ -29,10 +29,39 @@ type temporaryLinkPayload struct {
 }
 
 // TemporaryLinkResolver is the phase-one compatibility boundary for the
-// Agent's current URL + Bearer Token configuration. Frontend code treats the
-// complete sgta1 value as opaque. A future Agent enrollment-key resolver can
+// Agent's current URL + Bearer Token configuration. The service builds the
+// complete sgta1 value internally. A future Agent enrollment-key resolver can
 // replace this implementation without changing controllers or stored clusters.
 type TemporaryLinkResolver struct{}
+
+func BuildTemporaryLinkSecret(agentAddress string, bearerToken string) (string, error) {
+	agentAddress = strings.TrimSpace(agentAddress)
+	bearerToken = strings.TrimSpace(bearerToken)
+	if agentAddress == "" || len(agentAddress) > maxAgentBaseURLLength ||
+		bearerToken == "" || len(bearerToken) > maxAgentBearerTokenLength {
+		return "", ErrInvalidLinkSecret
+	}
+	if !strings.Contains(agentAddress, "://") {
+		agentAddress = "http://" + agentAddress
+	}
+
+	parsed, err := parseAgentBaseURL(agentAddress)
+	if err != nil || parsed.Port() == "" || parsed.Path != "" {
+		return "", ErrInvalidLinkSecret
+	}
+	payloadBytes, err := common.Marshal(temporaryLinkPayload{
+		BaseURL:     parsed.String(),
+		BearerToken: bearerToken,
+	})
+	if err != nil {
+		return "", err
+	}
+	linkSecret := temporaryLinkSecretPrefix + base64.RawURLEncoding.EncodeToString(payloadBytes)
+	if len(linkSecret) > maxLinkSecretLength {
+		return "", ErrInvalidLinkSecret
+	}
+	return linkSecret, nil
+}
 
 func (TemporaryLinkResolver) Resolve(_ context.Context, linkSecret string) (ResolvedAgentConnection, error) {
 	linkSecret = strings.TrimSpace(linkSecret)
@@ -59,23 +88,31 @@ func (TemporaryLinkResolver) Resolve(_ context.Context, linkSecret string) (Reso
 		return ResolvedAgentConnection{}, ErrInvalidLinkSecret
 	}
 
-	parsed, err := url.Parse(payload.BaseURL)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+	parsed, err := parseAgentBaseURL(payload.BaseURL)
+	if err != nil {
 		return ResolvedAgentConnection{}, ErrInvalidLinkSecret
-	}
-	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return ResolvedAgentConnection{}, ErrInvalidLinkSecret
-	}
-	parsed.Path = strings.TrimRight(parsed.Path, "/")
-	parsed.RawPath = ""
-	if parsed.Path == "." {
-		parsed.Path = ""
 	}
 
 	return ResolvedAgentConnection{
 		BaseURL:     strings.TrimRight(parsed.String(), "/"),
 		BearerToken: payload.BearerToken,
 	}, nil
+}
+
+func parseAgentBaseURL(baseURL string) (*url.URL, error) {
+	parsed, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return nil, ErrInvalidLinkSecret
+	}
+	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return nil, ErrInvalidLinkSecret
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/")
+	parsed.RawPath = ""
+	if parsed.Path == "." {
+		parsed.Path = ""
+	}
+	return parsed, nil
 }
 
 type AESGCMSecretProtector struct {

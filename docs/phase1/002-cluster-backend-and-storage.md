@@ -12,7 +12,7 @@
 
 - 新增集群配置和最新遥测 GORM 模型。
 - 新增模型联动、一级页面聚合、模型详情和集群详情 Service。
-- 新增临时连接密钥 Resolver 和 AES-GCM SecretProtector。
+- 新增 Agent 地址与 Bearer Token 到临时连接密钥的构造逻辑、Resolver 和 AES-GCM SecretProtector。
 - 新增管理员集群 API，并接入统一 API 返回格式。
 
 ## 新增或修改的文件

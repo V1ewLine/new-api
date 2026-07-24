@@ -48,7 +48,8 @@ func NewService(
 
 func (service *Service) CreateCluster(ctx context.Context, input CreateClusterInput) (*ClusterResponse, error) {
 	input.Name = strings.TrimSpace(input.Name)
-	input.LinkSecret = strings.TrimSpace(input.LinkSecret)
+	input.AgentAddress = strings.TrimSpace(input.AgentAddress)
+	input.AgentBearerToken = strings.TrimSpace(input.AgentBearerToken)
 	if input.ModelID <= 0 {
 		return nil, ErrClusterModelNotFound
 	}
@@ -68,7 +69,11 @@ func (service *Service) CreateCluster(ctx context.Context, input CreateClusterIn
 		return nil, err
 	}
 
-	connection, err := service.resolver.Resolve(ctx, input.LinkSecret)
+	linkSecret, err := BuildTemporaryLinkSecret(input.AgentAddress, input.AgentBearerToken)
+	if err != nil {
+		return nil, ErrInvalidLinkSecret
+	}
+	connection, err := service.resolver.Resolve(ctx, linkSecret)
 	if err != nil {
 		return nil, ErrInvalidLinkSecret
 	}
@@ -77,7 +82,7 @@ func (service *Service) CreateCluster(ctx context.Context, input CreateClusterIn
 			return nil, errors.New("cluster Agent address is blocked by the outbound request policy")
 		}
 	}
-	ciphertext, err := service.protector.Protect(input.LinkSecret)
+	ciphertext, err := service.protector.Protect(linkSecret)
 	if err != nil {
 		return nil, err
 	}

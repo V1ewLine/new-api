@@ -28,9 +28,10 @@ func (err *PollFailureError) Error() string {
 }
 
 type CreateClusterInput struct {
-	ModelID    int
-	Name       string
-	LinkSecret string
+	ModelID          int
+	Name             string
+	AgentAddress     string
+	AgentBearerToken string
 }
 
 type ResolvedAgentConnection struct {

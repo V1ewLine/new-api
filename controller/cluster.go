@@ -13,9 +13,10 @@ import (
 )
 
 type createClusterRequest struct {
-	ModelID    int    `json:"model_id"`
-	Name       string `json:"name"`
-	LinkSecret string `json:"link_secret"`
+	ModelID          int    `json:"model_id"`
+	Name             string `json:"name"`
+	AgentAddress     string `json:"agent_address"`
+	AgentBearerToken string `json:"agent_bearer_token"`
 }
 
 func GetClusterOverview(c *gin.Context) {
@@ -80,9 +81,10 @@ func CreateCluster(c *gin.Context) {
 		return
 	}
 	response, err := service.CreateCluster(c.Request.Context(), clusterstatus.CreateClusterInput{
-		ModelID:    request.ModelID,
-		Name:       request.Name,
-		LinkSecret: request.LinkSecret,
+		ModelID:          request.ModelID,
+		Name:             request.Name,
+		AgentAddress:     request.AgentAddress,
+		AgentBearerToken: request.AgentBearerToken,
 	})
 	if err != nil {
 		writeClusterServiceError(c, err)
@@ -200,7 +202,7 @@ func writeClusterServiceError(c *gin.Context, err error) {
 	case errors.Is(err, clusterstatus.ErrClusterPollInProgress):
 		common.ApiErrorMsg(c, "cluster refresh is already in progress")
 	case errors.Is(err, clusterstatus.ErrInvalidLinkSecret):
-		common.ApiErrorMsg(c, "invalid cluster link secret")
+		common.ApiErrorMsg(c, "invalid cluster Agent address or Bearer Token")
 	default:
 		var pollFailure *clusterstatus.PollFailureError
 		if errors.As(err, &pollFailure) {

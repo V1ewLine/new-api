@@ -98,24 +98,9 @@ Secret 加密使用项目现有 `CRYPTO_SECRET`。修改 `CRYPTO_SECRET` 会导�
 
 ## 关键设计决策
 
-- 临时连接密钥格式是 `sgta1.<base64url-json>`，JSON 只包含 `base_url` 和 `bearer_token`；协议仅存在于 `TemporaryLinkResolver`，后续可替换为 Agent Enrollment Key。
-- 管理员可以用下面的本地命令生成临时密钥，Token 通过隐藏输入读取，不会写入命令行历史：
-
-```bash
-python3 - <<'PY'
-import base64
-import getpass
-import json
-
-base_url = input("Agent base URL: ").strip()
-bearer_token = getpass.getpass("Agent bearer token: ").strip()
-payload = json.dumps(
-    {"base_url": base_url, "bearer_token": bearer_token},
-    separators=(",", ":"),
-).encode()
-print("sgta1." + base64.urlsafe_b64encode(payload).rstrip(b"=").decode())
-PY
-```
+- 管理员在添加集群时分别填写 Agent IP 与端口、Agent Bearer Token，不需要手动生成连接密钥。
+- `POST /api/clusters/` 使用 `agent_address` 和 `agent_bearer_token` 字段。未填写协议时，Service 默认使用 `http://`。
+- Service 内部临时连接密钥格式仍是 `sgta1.<base64url-json>`，JSON 只包含 `base_url` 和 `bearer_token`；构造和解析协议仅存在于集群 Service，后续可替换为 Agent Enrollment Key。
 
 - 密钥使用 AES-GCM 加密保存，数据库列和诊断字段均不参与 API JSON 序列化。
 - Agent 失败保留最后一次成功遥测；schema 失败的受限原始响应只用于内部诊断。

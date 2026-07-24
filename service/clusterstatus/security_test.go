@@ -31,6 +31,34 @@ func TestTemporaryLinkResolverResolvesOpaqueConnection(t *testing.T) {
 	assert.Equal(t, "agent-token", connection.BearerToken)
 }
 
+func TestBuildTemporaryLinkSecretAcceptsIPAndPortWithoutScheme(t *testing.T) {
+	linkSecret, err := BuildTemporaryLinkSecret("10.0.0.8:9100", "agent-token")
+	require.NoError(t, err)
+
+	connection, err := (TemporaryLinkResolver{}).Resolve(context.Background(), linkSecret)
+	require.NoError(t, err)
+	assert.Equal(t, "http://10.0.0.8:9100", connection.BaseURL)
+	assert.Equal(t, "agent-token", connection.BearerToken)
+}
+
+func TestBuildTemporaryLinkSecretRejectsInvalidConnectionFields(t *testing.T) {
+	testCases := map[string]struct {
+		address string
+		token   string
+	}{
+		"missing port":  {address: "agent.example", token: "token"},
+		"path included": {address: "https://agent.example:9443/internal", token: "token"},
+		"missing token": {address: "https://agent.example:9443", token: ""},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			_, err := BuildTemporaryLinkSecret(testCase.address, testCase.token)
+			require.ErrorIs(t, err, ErrInvalidLinkSecret)
+		})
+	}
+}
+
 func TestTemporaryLinkResolverRejectsUnsafeOrMalformedValues(t *testing.T) {
 	testCases := map[string]string{
 		"unknown prefix":    "other.payload",

@@ -44,6 +44,7 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 
 import { createCluster, getClusterModelOptions } from '../api'
+import { normalizeAgentAddress } from '../lib/connection'
 import { clusterQueryKeys } from '../query-keys'
 import { ModelSelector } from './model-selector'
 
@@ -54,12 +55,20 @@ const clusterFormSchema = z.object({
     .trim()
     .min(1, 'Cluster name is required')
     .max(128, 'Cluster name must be 128 characters or fewer'),
-  linkSecret: z
+  agentAddress: z
     .string()
     .trim()
-    .min(1, 'Cluster link secret is required')
-    .max(16384, 'Cluster link secret is too long')
-    .startsWith('sgta1.', 'Cluster link secret format is invalid'),
+    .min(1, 'Agent address is required')
+    .max(2048, 'Agent address is too long')
+    .refine(
+      (value) => normalizeAgentAddress(value) !== null,
+      'Agent address must include an IP or hostname and port'
+    ),
+  agentBearerToken: z
+    .string()
+    .trim()
+    .min(1, 'Agent Bearer Token is required')
+    .max(8192, 'Agent Bearer Token is too long'),
 })
 
 type ClusterFormValues = z.infer<typeof clusterFormSchema>
@@ -77,7 +86,8 @@ export function AddClusterDialog(props: AddClusterDialogProps) {
     defaultValues: {
       modelId: 0,
       name: '',
-      linkSecret: '',
+      agentAddress: '',
+      agentBearerToken: '',
     },
   })
   const optionsQuery = useQuery({
@@ -93,10 +103,17 @@ export function AddClusterDialog(props: AddClusterDialogProps) {
   })
   const createMutation = useMutation({
     mutationFn: async (values: ClusterFormValues) => {
+      const agentAddress = normalizeAgentAddress(values.agentAddress)
+      if (!agentAddress) {
+        throw new Error(
+          t('Agent address must include an IP or hostname and port')
+        )
+      }
       const response = await createCluster({
         model_id: values.modelId,
         name: values.name.trim(),
-        link_secret: values.linkSecret.trim(),
+        agent_address: agentAddress,
+        agent_bearer_token: values.agentBearerToken.trim(),
       })
       if (!response.success) {
         throw new Error(response.message || t('Failed to add cluster'))
@@ -185,27 +202,49 @@ export function AddClusterDialog(props: AddClusterDialogProps) {
               </FieldError>
             </Field>
 
-            <Field data-invalid={Boolean(form.formState.errors.linkSecret)}>
-              <FieldLabel htmlFor='cluster-link-secret'>
-                {t('Cluster Link Secret')}
+            <Field data-invalid={Boolean(form.formState.errors.agentAddress)}>
+              <FieldLabel htmlFor='cluster-agent-address'>
+                {t('Agent IP and Port')}
               </FieldLabel>
               <Input
-                id='cluster-link-secret'
+                id='cluster-agent-address'
+                inputMode='url'
+                autoComplete='url'
+                placeholder='10.0.0.8:9100'
+                aria-invalid={Boolean(form.formState.errors.agentAddress)}
+                disabled={createMutation.isPending}
+                {...form.register('agentAddress')}
+              />
+              <FieldError>
+                {form.formState.errors.agentAddress?.message
+                  ? t(form.formState.errors.agentAddress.message)
+                  : undefined}
+              </FieldError>
+            </Field>
+
+            <Field
+              data-invalid={Boolean(form.formState.errors.agentBearerToken)}
+            >
+              <FieldLabel htmlFor='cluster-agent-bearer-token'>
+                {t('Agent Bearer Token')}
+              </FieldLabel>
+              <Input
+                id='cluster-agent-bearer-token'
                 type='password'
                 autoComplete='new-password'
-                placeholder={t('Enter the opaque cluster link secret')}
-                aria-invalid={Boolean(form.formState.errors.linkSecret)}
+                placeholder={t('Enter the Agent Bearer Token')}
+                aria-invalid={Boolean(form.formState.errors.agentBearerToken)}
                 disabled={createMutation.isPending}
-                {...form.register('linkSecret')}
+                {...form.register('agentBearerToken')}
               />
               <FieldDescription>
                 {t(
-                  'The secret is encrypted after submission and is never shown again.'
+                  'The Agent Bearer Token is encrypted after submission and is never shown again.'
                 )}
               </FieldDescription>
               <FieldError>
-                {form.formState.errors.linkSecret?.message
-                  ? t(form.formState.errors.linkSecret.message)
+                {form.formState.errors.agentBearerToken?.message
+                  ? t(form.formState.errors.agentBearerToken.message)
                   : undefined}
               </FieldError>
             </Field>

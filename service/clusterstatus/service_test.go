@@ -74,20 +74,21 @@ func createTestModel(t *testing.T, name string, status int) *model.Model {
 func TestCreateClusterRejectsMissingAndDisabledModels(t *testing.T) {
 	setupClusterServiceTestDB(t)
 	service := testService(t, failingAgentClient{})
-	linkSecret := testLinkSecret(t, "https://agent.example", "agent-token")
 
 	_, err := service.CreateCluster(context.Background(), CreateClusterInput{
-		ModelID:    999,
-		Name:       "missing-model-cluster",
-		LinkSecret: linkSecret,
+		ModelID:          999,
+		Name:             "missing-model-cluster",
+		AgentAddress:     "https://agent.example:9443",
+		AgentBearerToken: "agent-token",
 	})
 	require.ErrorIs(t, err, ErrClusterModelNotFound)
 
 	disabledModel := createTestModel(t, "disabled-model", 0)
 	_, err = service.CreateCluster(context.Background(), CreateClusterInput{
-		ModelID:    disabledModel.Id,
-		Name:       "disabled-model-cluster",
-		LinkSecret: linkSecret,
+		ModelID:          disabledModel.Id,
+		Name:             "disabled-model-cluster",
+		AgentAddress:     "https://agent.example:9443",
+		AgentBearerToken: "agent-token",
 	})
 	require.ErrorIs(t, err, ErrClusterModelDisabled)
 }
@@ -96,21 +97,25 @@ func TestCreateClusterResponseNeverContainsSecret(t *testing.T) {
 	setupClusterServiceTestDB(t)
 	service := testService(t, failingAgentClient{})
 	linkedModel := createTestModel(t, "model-a", 1)
-	linkSecret := testLinkSecret(t, "https://agent.example", "sensitive-agent-token")
 
 	response, err := service.CreateCluster(context.Background(), CreateClusterInput{
-		ModelID:    linkedModel.Id,
-		Name:       "cluster-a",
-		LinkSecret: linkSecret,
+		ModelID:          linkedModel.Id,
+		Name:             "cluster-a",
+		AgentAddress:     "https://agent.example:9443",
+		AgentBearerToken: "sensitive-agent-token",
 	})
 	require.NoError(t, err)
 	assert.True(t, response.HasLinkSecret)
 
 	payload, err := common.Marshal(response)
 	require.NoError(t, err)
-	assert.NotContains(t, string(payload), linkSecret)
 	assert.NotContains(t, string(payload), "sensitive-agent-token")
 	assert.NotContains(t, string(payload), "LinkSecretCiphertext")
+
+	storedCluster, err := model.GetClusterByID(response.ID)
+	require.NoError(t, err)
+	require.NotNil(t, storedCluster)
+	assert.NotContains(t, storedCluster.LinkSecretCiphertext, "sensitive-agent-token")
 }
 
 func TestOverviewCombinesSearchStatusAndModelPagination(t *testing.T) {

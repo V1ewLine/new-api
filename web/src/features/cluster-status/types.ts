@@ -188,5 +188,6 @@ export type ClusterOverviewParams = {
 export type CreateClusterPayload = {
   model_id: number
   name: string
-  link_secret: string
+  agent_address: string
+  agent_bearer_token: string
 }
