@@ -332,7 +332,7 @@ REDIS_CONN_STRING=redis://:REDACTED@redis:6379/0
 
 - 用户、余额、渠道、令牌或系统设置从 PostgreSQL 消失。
 - 订阅和订单数据丢失。
-- `clusters` 和 `cluster_telemetry_latest` 表数据丢失。
+- `clusters`、`cluster_telemetry_latest` 和 `cluster_telemetry_history` 表数据丢失。
 
 ### 9.2 确实需要时，从 RDB/AOF 恢复
 
@@ -488,6 +488,8 @@ UNION ALL
 SELECT 'clusters', COUNT(*) FROM clusters
 UNION ALL
 SELECT 'cluster_telemetry_latest', COUNT(*) FROM cluster_telemetry_latest
+UNION ALL
+SELECT 'cluster_telemetry_history', COUNT(*) FROM cluster_telemetry_history
 ORDER BY table_name;
 ```
 

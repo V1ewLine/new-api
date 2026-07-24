@@ -19,7 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
-import { buildClusterExportParams, getExportFilename } from '../lib/export.ts'
+import {
+  buildClusterExportParams,
+  buildClusterHistoryExportParams,
+  getExportFilename,
+  validateClusterHistoryRange,
+} from '../lib/export.ts'
 
 describe('cluster export filename parsing', () => {
   test('reads quoted and UTF-8 Content-Disposition filenames', () => {
@@ -94,5 +99,59 @@ describe('cluster export page granularity', () => {
         cluster_id: 34,
       }
     )
+  })
+})
+
+describe('cluster history export time window', () => {
+  test('preserves exact seconds and maps the current page scope', () => {
+    assert.deepEqual(
+      buildClusterHistoryExportParams({
+        context: 'model',
+        modelId: 12,
+        start: new Date('2026-07-24T04:30:25.900Z'),
+        end: new Date('2026-07-24T05:31:26.100Z'),
+      }),
+      {
+        scope: 'all',
+        model_id: 12,
+        start_at: '2026-07-24T04:30:25Z',
+        end_at: '2026-07-24T05:31:26Z',
+      }
+    )
+    assert.deepEqual(
+      buildClusterHistoryExportParams({
+        context: 'cluster',
+        clusterId: 34,
+        start: new Date('2026-07-24T04:30:25Z'),
+        end: new Date('2026-07-24T05:30:25Z'),
+      }),
+      {
+        scope: 'cluster',
+        cluster_id: 34,
+        start_at: '2026-07-24T04:30:25Z',
+        end_at: '2026-07-24T05:30:25Z',
+      }
+    )
+  })
+
+  test('rejects reversed, over-retention, and unavailable ranges', () => {
+    const start = new Date('2026-07-20T00:00:00Z')
+    const end = new Date('2026-07-25T00:00:00Z')
+
+    assert.equal(validateClusterHistoryRange(end, start, 7), 'invalid_order')
+    assert.equal(
+      validateClusterHistoryRange(start, end, 3),
+      'exceeds_retention'
+    )
+    assert.equal(
+      validateClusterHistoryRange(
+        start,
+        end,
+        7,
+        new Date('2026-07-21T00:00:00Z').getTime() / 1000
+      ),
+      'before_available'
+    )
+    assert.equal(validateClusterHistoryRange(start, end, 7), null)
   })
 })

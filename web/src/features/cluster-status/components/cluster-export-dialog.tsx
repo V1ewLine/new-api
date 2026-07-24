@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Download04Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import { useQuery } from '@tanstack/react-query'
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -31,20 +32,35 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldTitle,
+} from '@/components/ui/field'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Spinner } from '@/components/ui/spinner'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
-import { downloadClusterExport } from '../api'
+import {
+  downloadClusterExport,
+  downloadClusterHistoryExport,
+  getClusterStatusSettings,
+} from '../api'
 import {
   buildClusterExportParams,
+  buildClusterHistoryExportParams,
   saveExportFile,
   type ClusterExportContext,
+  validateClusterHistoryRange,
 } from '../lib/export'
+import { clusterQueryKeys } from '../query-keys'
 import type {
   ClusterExportFormat,
   ClusterExportScope,
   ClusterHealthStatus,
 } from '../types'
+import { ClusterHistoryRangeFields } from './cluster-history-range-fields'
 
 type ExportOption = {
   scope: ClusterExportScope
@@ -63,11 +79,38 @@ type ClusterExportDialogProps = {
   status?: ClusterHealthStatus
 }
 
+type ExportSource = 'latest' | 'history'
+
+function defaultHistoryRange(availableFrom?: number) {
+  const end = new Date(Math.floor(Date.now() / 1000) * 1000)
+  const requestedStart = end.getTime() - 60 * 60 * 1000
+  const availableStart = availableFrom ? availableFrom * 1000 : requestedStart
+  return {
+    start: new Date(
+      Math.min(Math.max(requestedStart, availableStart), end.getTime() - 1000)
+    ),
+    end,
+  }
+}
+
 export function ClusterExportDialog(props: ClusterExportDialogProps) {
   const { t } = useTranslation()
   const selectId = useId()
+  const [source, setSource] = useState<ExportSource>('latest')
   const [selection, setSelection] = useState(0)
   const [exporting, setExporting] = useState(false)
+  const [historyRange, setHistoryRange] = useState(defaultHistoryRange)
+  const settingsQuery = useQuery({
+    queryKey: clusterQueryKeys.settings(),
+    queryFn: async () => {
+      const response = await getClusterStatusSettings()
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to load cluster settings')
+      }
+      return response.data
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+  })
 
   let options: ExportOption[]
   if (props.context === 'overview') {
@@ -123,23 +166,58 @@ export function ClusterExportDialog(props: ClusterExportDialogProps) {
   const selected = options[selection] ?? options[0]
 
   async function runExport() {
-    if (!selected) return
-    const params = buildClusterExportParams({
-      context: props.context,
-      scope: selected.scope,
-      format: selected.format,
-      search: props.search,
-      modelId: props.modelId,
-      clusterId: props.clusterId,
-      status: props.status,
-    })
-
     setExporting(true)
     try {
-      const result = await downloadClusterExport(params)
+      let result: { blob: Blob; filename: string }
+      if (source === 'history') {
+        const retentionDays = settingsQuery.data?.retention_days ?? 7
+        const rangeError = validateClusterHistoryRange(
+          historyRange.start,
+          historyRange.end,
+          retentionDays,
+          settingsQuery.data?.history_available_from
+        )
+        if (rangeError === 'invalid_order') {
+          throw new Error(t('Start time must be earlier than end time'))
+        }
+        if (rangeError === 'exceeds_retention') {
+          throw new Error(
+            t('The selected range exceeds the {{days}}-day retention period', {
+              days: retentionDays,
+            })
+          )
+        }
+        if (rangeError === 'before_available') {
+          throw new Error(t('The start time is earlier than available history'))
+        }
+        result = await downloadClusterHistoryExport(
+          buildClusterHistoryExportParams({
+            context: props.context,
+            start: historyRange.start,
+            end: historyRange.end,
+            search: props.search,
+            modelId: props.modelId,
+            clusterId: props.clusterId,
+            status: props.status,
+          })
+        )
+      } else {
+        if (!selected) return
+        result = await downloadClusterExport(
+          buildClusterExportParams({
+            context: props.context,
+            scope: selected.scope,
+            format: selected.format,
+            search: props.search,
+            modelId: props.modelId,
+            clusterId: props.clusterId,
+            status: props.status,
+          })
+        )
+      }
       saveExportFile(result.blob, result.filename)
       toast.success(t('Cluster data exported'))
-      props.onOpenChange(false)
+      closeDialog()
     } catch (error) {
       const message =
         error instanceof Error && error.message !== 'Cluster export failed'
@@ -151,11 +229,21 @@ export function ClusterExportDialog(props: ClusterExportDialogProps) {
     }
   }
 
+  function closeDialog() {
+    setSource('latest')
+    setSelection(0)
+    setHistoryRange(
+      defaultHistoryRange(settingsQuery.data?.history_available_from)
+    )
+    props.onOpenChange(false)
+  }
+
   function handleOpenChange(open: boolean) {
     if (open) {
-      setSelection(0)
+      props.onOpenChange(true)
+      return
     }
-    props.onOpenChange(open)
+    closeDialog()
   }
 
   return (
@@ -164,43 +252,95 @@ export function ClusterExportDialog(props: ClusterExportDialogProps) {
         <DialogHeader>
           <DialogTitle>{t('Export Cluster Data')}</DialogTitle>
           <DialogDescription>
-            {t(
-              'Exports the latest stored snapshot. Agent addresses, Bearer Tokens, and diagnostic payloads are excluded.'
-            )}
+            {source === 'latest'
+              ? t(
+                  'Exports the latest stored snapshot. Agent addresses, Bearer Tokens, and diagnostic payloads are excluded.'
+                )
+              : t(
+                  'Exports stored samples in the selected time window. Agent addresses, Bearer Tokens, raw responses, and diagnostic payloads are excluded.'
+                )}
           </DialogDescription>
         </DialogHeader>
 
-        <div className='flex flex-col gap-2'>
-          <label htmlFor={selectId} className='text-sm font-medium'>
-            {t('Export content')}
-          </label>
-          <NativeSelect
-            id={selectId}
-            className='w-full'
-            value={String(selection)}
-            onChange={(event) => setSelection(Number(event.target.value))}
-            disabled={exporting}
-          >
-            {options.map((option, index) => (
-              <NativeSelectOption
-                key={`${option.scope}-${option.format}`}
-                value={index}
+        <FieldGroup>
+          <Field>
+            <FieldTitle id='cluster-export-source'>
+              {t('Data source')}
+            </FieldTitle>
+            <ToggleGroup
+              aria-labelledby='cluster-export-source'
+              value={[source]}
+              onValueChange={(value) => {
+                const next = value.find((item) => item !== source)
+                if (next === 'latest' || next === 'history') {
+                  setSource(next)
+                  if (next === 'history') {
+                    setHistoryRange(
+                      defaultHistoryRange(
+                        settingsQuery.data?.history_available_from
+                      )
+                    )
+                  }
+                }
+              }}
+              variant='outline'
+              spacing={2}
+              className='grid w-full grid-cols-2'
+              disabled={exporting}
+            >
+              <ToggleGroupItem value='latest' className='w-full'>
+                {t('Latest snapshot')}
+              </ToggleGroupItem>
+              <ToggleGroupItem value='history' className='w-full'>
+                {t('Time range')}
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </Field>
+
+          {source === 'latest' ? (
+            <Field>
+              <FieldTitle>
+                <label htmlFor={selectId}>{t('Export content')}</label>
+              </FieldTitle>
+              <NativeSelect
+                id={selectId}
+                className='w-full'
+                value={String(selection)}
+                onChange={(event) => setSelection(Number(event.target.value))}
+                disabled={exporting}
               >
-                {option.label}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-          <p className='text-muted-foreground text-xs'>
-            {selected?.description}
-          </p>
-        </div>
+                {options.map((option, index) => (
+                  <NativeSelectOption
+                    key={`${option.scope}-${option.format}`}
+                    value={index}
+                  >
+                    {option.label}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+              <FieldDescription>{selected?.description}</FieldDescription>
+            </Field>
+          ) : (
+            <Field>
+              <FieldTitle>{t('Export time window')}</FieldTitle>
+              <ClusterHistoryRangeFields
+                start={historyRange.start}
+                end={historyRange.end}
+                onChange={setHistoryRange}
+                availableFrom={settingsQuery.data?.history_available_from}
+                disabled={exporting}
+              />
+              <FieldDescription>
+                {t(
+                  'The start time is included and the end time is excluded. The ZIP contains telemetry, GPU, engine load, and normalized JSONL history.'
+                )}
+              </FieldDescription>
+            </Field>
+          )}
+        </FieldGroup>
 
         <DialogFooter>
-          <Button
-            variant='outline'
-            onClick={() => props.onOpenChange(false)}
-            disabled={exporting}
-          >
+          <Button variant='outline' onClick={closeDialog} disabled={exporting}>
             {t('Cancel')}
           </Button>
           <Button onClick={runExport} disabled={exporting}>

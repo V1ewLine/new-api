@@ -19,6 +19,11 @@ var (
 	defaultPoller    *Poller
 )
 
+const (
+	historyCleanupInterval  = time.Hour
+	historyCleanupBatchSize = 5000
+)
+
 type Poller struct {
 	service   *Service
 	config    PollConfig
@@ -26,6 +31,7 @@ type Poller struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	wakeup    chan struct{}
+	cleanup   chan struct{}
 	semaphore chan struct{}
 	running   sync.Map
 	wg        sync.WaitGroup
@@ -91,7 +97,7 @@ func Initialize() error {
 		NewHTTPAgentClient(rootservice.GetSSRFProtectedHTTPClient(), config.MaxBodyBytes),
 		SchemaV1Adapter{},
 		NewDefaultHealthEvaluator(config.FailureThreshold),
-		EmptyHistoryRepository{},
+		GORMHistoryRepository{},
 		rootservice.ValidateSSRFProtectedFetchURL,
 		config,
 	)
@@ -134,6 +140,7 @@ func NewPoller(service *Service, config PollConfig) *Poller {
 		ctx:       ctx,
 		cancel:    cancel,
 		wakeup:    make(chan struct{}, 1),
+		cleanup:   make(chan struct{}, 1),
 		semaphore: make(chan struct{}, config.MaxConcurrency),
 	}
 }
@@ -166,12 +173,73 @@ func (poller *Poller) Start() {
 			}
 		}
 	}()
+	poller.wg.Add(1)
+	go func() {
+		defer poller.wg.Done()
+		ticker := time.NewTicker(historyCleanupInterval)
+		defer ticker.Stop()
+		poller.cleanupHistory()
+		for {
+			select {
+			case <-poller.ctx.Done():
+				return
+			case <-ticker.C:
+				poller.cleanupHistory()
+			case <-poller.cleanup:
+				poller.cleanupHistory()
+			}
+		}
+	}()
 	logger.LogInfo(context.Background(), fmt.Sprintf(
 		"cluster telemetry poller started: interval=%s timeout=%s concurrency=%d",
 		poller.config.currentInterval(),
 		poller.config.RequestTimeout,
 		poller.config.MaxConcurrency,
 	))
+}
+
+func TriggerHistoryRetentionCleanup() {
+	defaultServiceMu.RLock()
+	poller := defaultPoller
+	defaultServiceMu.RUnlock()
+	if poller == nil {
+		return
+	}
+	select {
+	case poller.cleanup <- struct{}{}:
+	default:
+	}
+}
+
+func (poller *Poller) cleanupHistory() {
+	cutoff := time.Now().
+		AddDate(0, 0, -common.GetClusterTelemetryRetentionDays()).
+		Unix()
+	var total int64
+	for {
+		if poller.ctx.Err() != nil {
+			return
+		}
+		deleted, err := model.DeleteClusterTelemetryHistoryBefore(cutoff, historyCleanupBatchSize)
+		if err != nil {
+			logger.LogWarn(context.Background(), fmt.Sprintf(
+				"cluster telemetry history cleanup failed: %v",
+				err,
+			))
+			return
+		}
+		total += deleted
+		if deleted < historyCleanupBatchSize {
+			break
+		}
+	}
+	if total > 0 {
+		logger.LogInfo(context.Background(), fmt.Sprintf(
+			"cluster telemetry history cleanup completed: deleted=%d cutoff=%d",
+			total,
+			cutoff,
+		))
+	}
 }
 
 func RescheduleEnabledClusters() {

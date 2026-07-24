@@ -33,6 +33,8 @@ export type ApiResponse<T> = {
 
 export type ClusterStatusSettings = {
   refresh_interval_seconds: number
+  retention_days: number
+  history_available_from: number
 }
 
 export type ModelOption = {
@@ -204,6 +206,16 @@ export type ClusterExportFormat = 'csv' | 'zip' | 'json'
 export type ClusterExportParams = {
   scope: ClusterExportScope
   format: ClusterExportFormat
+  search?: string
+  model_id?: number
+  cluster_id?: number
+  status?: ClusterHealthStatus
+}
+
+export type ClusterHistoryExportParams = {
+  scope: 'all' | 'cluster'
+  start_at: string
+  end_at: string
   search?: string
   model_id?: number
   cluster_id?: number

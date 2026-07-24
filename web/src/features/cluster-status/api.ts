@@ -23,6 +23,7 @@ import type {
   ApiResponse,
   Cluster,
   ClusterExportParams,
+  ClusterHistoryExportParams,
   ClusterOverview,
   ClusterOverviewParams,
   ClusterStatusSettings,
@@ -58,6 +59,32 @@ export async function getClusterModelOptions() {
 
 export async function downloadClusterExport(params: ClusterExportParams) {
   const response = await api.get<Blob>('/api/clusters/export/latest', {
+    params,
+    responseType: 'blob',
+    skipBusinessError: true,
+    disableDuplicate: true,
+  })
+  const disposition = response.headers['content-disposition']
+  if (!disposition) {
+    const payload = await response.data.text()
+    let errorResponse: ApiResponse<never>
+    try {
+      errorResponse = JSON.parse(payload) as ApiResponse<never>
+    } catch {
+      throw new Error('Cluster export failed')
+    }
+    throw new Error(errorResponse.message || 'Cluster export failed')
+  }
+  return {
+    blob: response.data,
+    filename: getExportFilename(disposition),
+  }
+}
+
+export async function downloadClusterHistoryExport(
+  params: ClusterHistoryExportParams
+) {
+  const response = await api.get<Blob>('/api/clusters/export/history', {
     params,
     responseType: 'blob',
     skipBusinessError: true,

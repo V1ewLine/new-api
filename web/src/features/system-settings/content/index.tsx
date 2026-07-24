@@ -37,6 +37,7 @@ const defaultContentSettings: ContentSettings = {
   DataExportDefaultTime: 'hour',
   DataExportInterval: 5,
   ClusterStatusRefreshIntervalSeconds: 5,
+  ClusterTelemetryRetentionDays: 7,
   Chats: '[]',
   DrawingEnabled: false,
   MjNotifyEnabled: false,

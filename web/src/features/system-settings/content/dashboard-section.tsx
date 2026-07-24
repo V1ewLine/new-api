@@ -57,6 +57,7 @@ const dataDashboardSchema = z.object({
   DataExportInterval: z.number().int().min(1).max(1440),
   DataExportDefaultTime: z.enum(['hour', 'day', 'week']),
   ClusterStatusRefreshIntervalSeconds: z.number().int().min(1).max(300),
+  ClusterTelemetryRetentionDays: z.number().int().min(1).max(365),
 })
 
 type DataDashboardFormValues = z.infer<typeof dataDashboardSchema>
@@ -208,6 +209,33 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                   <FormDescription>
                     {t(
                       'Controls automatic refresh on cluster status pages. Manual refresh remains available.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='ClusterTelemetryRetentionDays'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    {t('Cluster telemetry retention (days)')}
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      max={365}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Telemetry older than this value is deleted automatically. Deleted history cannot be recovered.'
                     )}
                   </FormDescription>
                   <FormMessage />

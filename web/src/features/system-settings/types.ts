@@ -178,6 +178,7 @@ export type ContentSettings = {
   DataExportDefaultTime: string
   DataExportInterval: number
   ClusterStatusRefreshIntervalSeconds: number
+  ClusterTelemetryRetentionDays: number
   Chats: string
   DrawingEnabled: boolean
   MjNotifyEnabled: boolean

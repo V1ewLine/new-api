@@ -48,6 +48,7 @@ const CONTENT_SECTIONS = [
           DataExportInterval: settings.DataExportInterval,
           ClusterStatusRefreshIntervalSeconds:
             settings.ClusterStatusRefreshIntervalSeconds,
+          ClusterTelemetryRetentionDays: settings.ClusterTelemetryRetentionDays,
           DataExportDefaultTime: validateDataExportDefaultTime(
             settings.DataExportDefaultTime
           ),

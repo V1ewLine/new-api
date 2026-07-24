@@ -55,6 +55,7 @@ erDiagram
     vendors ||--o{ models : provides
     models ||--o{ clusters : deploys
     clusters ||--|| cluster_telemetry_latest : reports
+    clusters ||--o{ cluster_telemetry_history : samples
     subscription_plans ||--o{ subscription_orders : purchased_as
     subscription_plans ||--o{ user_subscriptions : grants
     user_subscriptions ||--o{ subscription_pre_consume_records : reserves
@@ -67,7 +68,7 @@ erDiagram
 - `channels.id` 被路由能力、日志、仪表板汇总、异步任务等表引用。
 - `vendors.id` 被 `models.vendor_id` 引用。
 - `models.id` 被 `clusters.model_id` 引用。
-- `clusters.id` 被 `cluster_telemetry_latest.cluster_id` 引用。
+- `clusters.id` 被 `cluster_telemetry_latest.cluster_id` 和 `cluster_telemetry_history.cluster_id` 引用。
 - `subscription_plans.id` 被订阅订单和用户订阅引用。
 - `user_subscriptions.id` 被预消费记录引用。
 
@@ -85,7 +86,7 @@ erDiagram
 | 异步任务 | `midjourneys`、`tasks` |
 | 订阅 | `subscription_plans`、`subscription_orders`、`user_subscriptions`、`subscription_pre_consume_records` |
 | 系统任务与节点 | `system_instances`、`system_tasks`、`system_task_locks` |
-| 集群状态 | `clusters`、`cluster_telemetry_latest` |
+| 集群状态 | `clusters`、`cluster_telemetry_latest`、`cluster_telemetry_history` |
 
 ## 5. 核心访问与配置表
 
@@ -397,6 +398,19 @@ Midjourney 类型任务及历史兼容数据。
 - 主键：`cluster_id`
 - 字段：`schema_version`、`collection_id`、`raw_payload`、`normalized_payload`、`collected_at`、`updated_at`
 - 逻辑引用：`cluster_id -> clusters.id`
+
+### 11.3 `cluster_telemetry_history`
+
+集群遥测历史采样。成功和失败轮询都会写入，历史保留天数由 `options.ClusterTelemetryRetentionDays` 控制。
+
+- 主键：`id`
+- 字段：`cluster_id`、`collection_id`、`status`、`health_status`、`schema_version`、`normalized_payload`、`error_code`、`collected_at`、`created_at`
+- 逻辑引用：`cluster_id -> clusters.id`
+- 成功采样：`status=success`，保存 `collection_id`、`schema_version` 和 `normalized_payload`
+- 失败采样：`status=error`，只保存脱敏的 `error_code`，不保存原始响应和诊断载荷
+- 时间索引：`(cluster_id, collected_at, id)` 和 `(collected_at, id)`
+- 去重索引：`(cluster_id, collection_id)`；失败采样的 `collection_id` 为 `NULL`
+- 清理规则：主节点按保留天数每小时分批删除过期记录
 
 ## 12. 时间、软删除和敏感数据约定
 

@@ -33,6 +33,11 @@ export const STATIC_I18N_KEYS = [
   'Auto-disable rules',
   'Channel health checks',
   'Request retry',
+  'Last 15 minutes',
+  'Last hour',
+  'Last 6 hours',
+  'Last 24 hours',
+  'Last 7 days',
 
   // System settings sidebar
   'System Administration',

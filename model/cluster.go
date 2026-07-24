@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -63,6 +64,39 @@ type ClusterTelemetryLatest struct {
 
 func (ClusterTelemetryLatest) TableName() string {
 	return "cluster_telemetry_latest"
+}
+
+type ClusterTelemetrySampleStatus string
+
+const (
+	ClusterTelemetrySampleSuccess ClusterTelemetrySampleStatus = "success"
+	ClusterTelemetrySampleError   ClusterTelemetrySampleStatus = "error"
+)
+
+type ClusterTelemetryHistory struct {
+	ID                int64                        `json:"id" gorm:"primaryKey;index:idx_cluster_telemetry_history_range,priority:3;index:idx_cluster_telemetry_history_cleanup,priority:2"`
+	ClusterID         int64                        `json:"cluster_id" gorm:"not null;index:idx_cluster_telemetry_history_range,priority:1;uniqueIndex:uk_cluster_telemetry_history_collection,priority:1"`
+	CollectionID      *string                      `json:"collection_id,omitempty" gorm:"type:varchar(64);uniqueIndex:uk_cluster_telemetry_history_collection,priority:2"`
+	Status            ClusterTelemetrySampleStatus `json:"status" gorm:"type:varchar(16);not null"`
+	HealthStatus      ClusterHealthStatus          `json:"health_status" gorm:"type:varchar(32);not null"`
+	SchemaVersion     string                       `json:"schema_version,omitempty" gorm:"type:varchar(32)"`
+	NormalizedPayload string                       `json:"-" gorm:"type:text"`
+	ErrorCode         string                       `json:"error_code,omitempty" gorm:"type:varchar(64)"`
+	CollectedAt       int64                        `json:"collected_at" gorm:"bigint;not null;index:idx_cluster_telemetry_history_range,priority:2;index:idx_cluster_telemetry_history_cleanup,priority:1"`
+	CreatedAt         int64                        `json:"created_at" gorm:"bigint;not null"`
+}
+
+func (ClusterTelemetryHistory) TableName() string {
+	return "cluster_telemetry_history"
+}
+
+type ClusterTelemetryHistoryFilter struct {
+	ClusterIDs       []int64
+	FromInclusive    int64
+	ToExclusive      int64
+	AfterCollectedAt int64
+	AfterID          int64
+	Limit            int
 }
 
 type ClusterListFilter struct {
@@ -170,6 +204,9 @@ func DeleteClusterByID(id int64) (bool, error) {
 		if err := tx.Where("cluster_id = ?", id).Delete(&ClusterTelemetryLatest{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("cluster_id = ?", id).Delete(&ClusterTelemetryHistory{}).Error; err != nil {
+			return err
+		}
 		deleted = true
 		return nil
 	})
@@ -266,6 +303,20 @@ func SaveClusterPollSuccess(clusterID int64, runnerID string, health ClusterHeal
 	return DB.Transaction(func(tx *gorm.DB) error {
 		telemetry.ClusterID = clusterID
 		telemetry.UpdatedAt = now
+		collectionID := telemetry.CollectionID
+		history := &ClusterTelemetryHistory{
+			ClusterID:         clusterID,
+			CollectionID:      &collectionID,
+			Status:            ClusterTelemetrySampleSuccess,
+			HealthStatus:      health,
+			SchemaVersion:     telemetry.SchemaVersion,
+			NormalizedPayload: telemetry.NormalizedPayload,
+			CollectedAt:       telemetry.CollectedAt,
+			CreatedAt:         now,
+		}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(history).Error; err != nil {
+			return err
+		}
 		if err := tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "cluster_id"}},
 			DoUpdates: clause.Assignments(map[string]any{
@@ -308,29 +359,41 @@ func SaveClusterPollSuccess(clusterID int64, runnerID string, health ClusterHeal
 
 func SaveClusterPollFailure(clusterID int64, runnerID string, health ClusterHealthStatus, errorCode string, diagnosticPayload string, nextPollAt int64) error {
 	now := common.GetTimestamp()
-	updates := map[string]any{
-		"health_status":        health,
-		"last_polled_at":       now,
-		"consecutive_failures": gorm.Expr("consecutive_failures + ?", 1),
-		"last_error_code":      errorCode,
-		"next_poll_at":         nextPollAt,
-		"poll_locked_by":       "",
-		"poll_locked_until":    int64(0),
-		"updated_at":           now,
-	}
-	if diagnosticPayload != "" {
-		updates["last_failure_payload"] = diagnosticPayload
-	}
-	result := DB.Model(&Cluster{}).
-		Where("id = ? AND poll_locked_by = ?", clusterID, runnerID).
-		Updates(updates)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected != 1 {
-		return errors.New("cluster poll lease lost")
-	}
-	return nil
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&ClusterTelemetryHistory{
+			ClusterID:    clusterID,
+			Status:       ClusterTelemetrySampleError,
+			HealthStatus: health,
+			ErrorCode:    errorCode,
+			CollectedAt:  now,
+			CreatedAt:    now,
+		}).Error; err != nil {
+			return err
+		}
+		updates := map[string]any{
+			"health_status":        health,
+			"last_polled_at":       now,
+			"consecutive_failures": gorm.Expr("consecutive_failures + ?", 1),
+			"last_error_code":      errorCode,
+			"next_poll_at":         nextPollAt,
+			"poll_locked_by":       "",
+			"poll_locked_until":    int64(0),
+			"updated_at":           now,
+		}
+		if diagnosticPayload != "" {
+			updates["last_failure_payload"] = diagnosticPayload
+		}
+		result := tx.Model(&Cluster{}).
+			Where("id = ? AND poll_locked_by = ?", clusterID, runnerID).
+			Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("cluster poll lease lost")
+		}
+		return nil
+	})
 }
 
 func GetLatestClusterTelemetry(clusterID int64) (*ClusterTelemetryLatest, error) {
@@ -358,4 +421,81 @@ func GetLatestClusterTelemetryMap(clusterIDs []int64) (map[int64]*ClusterTelemet
 		result[row.ClusterID] = row
 	}
 	return result, nil
+}
+
+func ListClusterTelemetryHistoryBatch(ctx context.Context, filter ClusterTelemetryHistoryFilter) ([]*ClusterTelemetryHistory, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 2000
+	}
+	if filter.Limit > 5000 {
+		filter.Limit = 5000
+	}
+	rows := make([]*ClusterTelemetryHistory, 0, filter.Limit)
+	query := DB.WithContext(ctx).Model(&ClusterTelemetryHistory{})
+	if len(filter.ClusterIDs) > 0 {
+		query = query.Where("cluster_id IN ?", filter.ClusterIDs)
+	}
+	if filter.FromInclusive > 0 {
+		query = query.Where("collected_at >= ?", filter.FromInclusive)
+	}
+	if filter.ToExclusive > 0 {
+		query = query.Where("collected_at < ?", filter.ToExclusive)
+	}
+	if filter.AfterCollectedAt > 0 || filter.AfterID > 0 {
+		query = query.Where(
+			"(collected_at > ?) OR (collected_at = ? AND id > ?)",
+			filter.AfterCollectedAt,
+			filter.AfterCollectedAt,
+			filter.AfterID,
+		)
+	}
+	err := query.
+		Order("collected_at ASC, id ASC").
+		Limit(filter.Limit).
+		Find(&rows).Error
+	return rows, err
+}
+
+func CountClusterTelemetryHistory(clusterIDs []int64, fromInclusive int64, toExclusive int64) (int64, error) {
+	var count int64
+	query := DB.Model(&ClusterTelemetryHistory{}).
+		Where("collected_at >= ? AND collected_at < ?", fromInclusive, toExclusive)
+	if len(clusterIDs) > 0 {
+		query = query.Where("cluster_id IN ?", clusterIDs)
+	}
+	err := query.Count(&count).Error
+	return count, err
+}
+
+func GetClusterTelemetryHistoryAvailableFrom() (int64, error) {
+	var row ClusterTelemetryHistory
+	err := DB.Select("collected_at").
+		Order("collected_at ASC, id ASC").
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, nil
+	}
+	return row.CollectedAt, err
+}
+
+func DeleteClusterTelemetryHistoryBefore(cutoff int64, batchSize int) (int64, error) {
+	if cutoff <= 0 {
+		return 0, nil
+	}
+	if batchSize <= 0 {
+		batchSize = 5000
+	}
+	ids := make([]int64, 0, batchSize)
+	if err := DB.Model(&ClusterTelemetryHistory{}).
+		Where("collected_at < ?", cutoff).
+		Order("collected_at ASC, id ASC").
+		Limit(batchSize).
+		Pluck("id", &ids).Error; err != nil {
+		return 0, err
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	result := DB.Where("id IN ?", ids).Delete(&ClusterTelemetryHistory{})
+	return result.RowsAffected, result.Error
 }

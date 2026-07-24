@@ -3,10 +3,12 @@ package clusterstatus
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/csv"
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -30,6 +32,29 @@ func saveLatestTelemetryFixture(t *testing.T, cluster *model.Cluster, gpuCount i
 		RawPayload:        `{"private_raw_marker":"must-not-export"}`,
 		NormalizedPayload: string(normalized),
 		CollectedAt:       1784808000,
+	}).Error)
+}
+
+func saveHistoryTelemetryFixture(t *testing.T, cluster *model.Cluster, collectionID string, collectedAt int64, gpuCount int) {
+	t.Helper()
+	telemetry, err := (SchemaV1Adapter{}).Adapt(
+		telemetryFixture(t, "ok", cluster.ModelNameSnapshot, gpuCount),
+		cluster.ModelNameSnapshot,
+	)
+	require.NoError(t, err)
+	telemetry.CollectionID = collectionID
+	telemetry.CollectedAt = time.Unix(collectedAt, 0).UTC().Format(time.RFC3339)
+	normalized, err := common.Marshal(telemetry)
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.ClusterTelemetryHistory{
+		ClusterID:         cluster.ID,
+		CollectionID:      &collectionID,
+		Status:            model.ClusterTelemetrySampleSuccess,
+		HealthStatus:      model.ClusterHealthOnline,
+		SchemaVersion:     telemetry.SchemaVersion,
+		NormalizedPayload: string(normalized),
+		CollectedAt:       collectedAt,
+		CreatedAt:         collectedAt + 1,
 	}).Error)
 }
 
@@ -206,4 +231,95 @@ func TestLatestJSONExportLabelsLegacyMetricSemanticsAsUnknown(t *testing.T) {
 	require.NotNil(t, exported.Clusters[0].Telemetry)
 	assert.Equal(t, "unknown", exported.Clusters[0].Telemetry.Metrics.RequestsSemantics)
 	assert.Equal(t, "unknown", exported.Clusters[0].Telemetry.Metrics.TokensSemantics)
+}
+
+func TestHistoryZIPExportUsesExactWindowAndExcludesSecrets(t *testing.T) {
+	setupClusterServiceTestDB(t)
+	service := testService(t, failingAgentClient{})
+	linkedModel := createTestModel(t, "model-a", 1)
+	cluster := &model.Cluster{
+		ModelID:              linkedModel.Id,
+		ModelNameSnapshot:    linkedModel.ModelName,
+		Name:                 "cluster-a",
+		LinkSecretCiphertext: "top-secret-ciphertext",
+		Enabled:              true,
+		HealthStatus:         model.ClusterHealthOnline,
+		CredentialStatus:     model.ClusterCredentialActive,
+		LastFailurePayload:   "private-diagnostic-payload",
+	}
+	require.NoError(t, model.CreateCluster(cluster))
+	saveHistoryTelemetryFixture(t, cluster, "inside-start", 100, 2)
+	require.NoError(t, model.DB.Create(&model.ClusterTelemetryHistory{
+		ClusterID:    cluster.ID,
+		Status:       model.ClusterTelemetrySampleError,
+		HealthStatus: model.ClusterHealthOffline,
+		ErrorCode:    "AGENT_UNREACHABLE",
+		CollectedAt:  150,
+		CreatedAt:    151,
+	}).Error)
+	saveHistoryTelemetryFixture(t, cluster, "excluded-end", 200, 1)
+
+	prepared, err := service.PrepareHistoryExport(context.Background(), HistoryExportInput{
+		Scope:     "cluster",
+		ClusterID: cluster.ID,
+		StartAt:   time.Unix(100, 0),
+		EndAt:     time.Unix(200, 0),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), prepared.SampleCount)
+
+	var buffer bytes.Buffer
+	require.NoError(t, prepared.WriteTo(&buffer))
+	reader, err := zip.NewReader(bytes.NewReader(buffer.Bytes()), int64(buffer.Len()))
+	require.NoError(t, err)
+	fileNames := make([]string, 0, len(reader.File))
+	var combined strings.Builder
+	var telemetryRows [][]string
+	for _, file := range reader.File {
+		fileNames = append(fileNames, file.Name)
+		entry, openErr := file.Open()
+		require.NoError(t, openErr)
+		payload, readErr := io.ReadAll(entry)
+		require.NoError(t, readErr)
+		require.NoError(t, entry.Close())
+		combined.Write(payload)
+		if file.Name == "telemetry_history.csv" {
+			telemetryRows, readErr = csv.NewReader(
+				bytes.NewReader(bytes.TrimPrefix(payload, []byte{0xEF, 0xBB, 0xBF})),
+			).ReadAll()
+			require.NoError(t, readErr)
+		}
+	}
+	assert.ElementsMatch(t, []string{
+		"manifest.json",
+		"clusters.csv",
+		"telemetry_history.csv",
+		"gpu_device_history.csv",
+		"engine_load_history.csv",
+		"normalized_telemetry_history.jsonl",
+	}, fileNames)
+	assert.Contains(t, combined.String(), "inside-start")
+	assert.Contains(t, combined.String(), "AGENT_UNREACHABLE")
+	assert.NotContains(t, combined.String(), "excluded-end")
+	assert.NotContains(t, combined.String(), "top-secret-ciphertext")
+	assert.NotContains(t, combined.String(), "private-diagnostic-payload")
+	require.Len(t, telemetryRows, 3)
+}
+
+func TestHistoryExportRejectsRangeLongerThanRetention(t *testing.T) {
+	setupClusterServiceTestDB(t)
+	service := testService(t, failingAgentClient{})
+	previousRetention := common.ClusterTelemetryRetentionDays
+	common.ClusterTelemetryRetentionDays = 7
+	t.Cleanup(func() {
+		common.ClusterTelemetryRetentionDays = previousRetention
+	})
+
+	_, err := service.PrepareHistoryExport(context.Background(), HistoryExportInput{
+		Scope:   "all",
+		StartAt: time.Unix(0, 0),
+		EndAt:   time.Unix(8*24*60*60, 0),
+	})
+
+	require.ErrorIs(t, err, ErrClusterExportInvalid)
 }

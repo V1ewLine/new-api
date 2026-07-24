@@ -50,7 +50,10 @@ export function useUpdateOption() {
         // Always refresh system-options
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
 
-        if (variables.key === 'ClusterStatusRefreshIntervalSeconds') {
+        if (
+          variables.key === 'ClusterStatusRefreshIntervalSeconds' ||
+          variables.key === 'ClusterTelemetryRetentionDays'
+        ) {
           queryClient.invalidateQueries({
             queryKey: clusterQueryKeys.settings(),
           })

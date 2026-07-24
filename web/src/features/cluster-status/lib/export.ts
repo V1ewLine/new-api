@@ -21,6 +21,7 @@ import type {
   ClusterExportParams,
   ClusterExportScope,
   ClusterHealthStatus,
+  ClusterHistoryExportParams,
 } from '../types'
 
 const FALLBACK_EXPORT_FILENAME = 'cluster-status-export'
@@ -31,6 +32,16 @@ type BuildClusterExportParamsInput = {
   context: ClusterExportContext
   scope: ClusterExportScope
   format: ClusterExportFormat
+  search?: string
+  modelId?: number
+  clusterId?: number
+  status?: ClusterHealthStatus
+}
+
+type BuildClusterHistoryExportParamsInput = {
+  context: ClusterExportContext
+  start: Date
+  end: Date
   search?: string
   modelId?: number
   clusterId?: number
@@ -54,6 +65,52 @@ export function buildClusterExportParams(
     params.cluster_id = input.clusterId
   }
   return params
+}
+
+export function buildClusterHistoryExportParams(
+  input: BuildClusterHistoryExportParamsInput
+): ClusterHistoryExportParams {
+  const params: ClusterHistoryExportParams = {
+    scope: input.context === 'cluster' ? 'cluster' : 'all',
+    start_at: toRFC3339Seconds(input.start),
+    end_at: toRFC3339Seconds(input.end),
+  }
+  if (input.context === 'overview') {
+    params.search = input.search || undefined
+    params.model_id = input.modelId || undefined
+    params.status = input.status || undefined
+  } else if (input.context === 'model') {
+    params.model_id = input.modelId
+  } else {
+    params.cluster_id = input.clusterId
+  }
+  return params
+}
+
+export function toRFC3339Seconds(date: Date): string {
+  const rounded = new Date(Math.floor(date.getTime() / 1000) * 1000)
+  return rounded.toISOString().replace('.000Z', 'Z')
+}
+
+export function validateClusterHistoryRange(
+  start: Date,
+  end: Date,
+  retentionDays: number,
+  availableFrom?: number
+): 'invalid_order' | 'exceeds_retention' | 'before_available' | null {
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return 'invalid_order'
+  }
+  if (start.getTime() >= end.getTime()) {
+    return 'invalid_order'
+  }
+  if (end.getTime() - start.getTime() > retentionDays * 86400000) {
+    return 'exceeds_retention'
+  }
+  if (availableFrom && start.getTime() < availableFrom * 1000) {
+    return 'before_available'
+  }
+  return null
 }
 
 export function getExportFilename(contentDisposition: string): string {

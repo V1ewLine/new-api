@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -20,8 +21,15 @@ type createClusterRequest struct {
 }
 
 func GetClusterSettings(c *gin.Context) {
+	availableFrom, err := model.GetClusterTelemetryHistoryAvailableFrom()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.ApiSuccess(c, gin.H{
 		"refresh_interval_seconds": common.GetClusterStatusRefreshIntervalSeconds(),
+		"retention_days":           common.GetClusterTelemetryRetentionDays(),
+		"history_available_from":   availableFrom,
 	})
 }
 
@@ -119,6 +127,66 @@ func ExportClusterLatestTelemetry(c *gin.Context) {
 		"scope":  prepared.Scope,
 		"format": prepared.Format,
 		"count":  prepared.ClusterCount,
+	})
+}
+
+func ExportClusterTelemetryHistory(c *gin.Context) {
+	service, err := clusterstatus.DefaultService()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	startAt, err := time.Parse(time.RFC3339, strings.TrimSpace(c.Query("start_at")))
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid start_at")
+		return
+	}
+	endAt, err := time.Parse(time.RFC3339, strings.TrimSpace(c.Query("end_at")))
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid end_at")
+		return
+	}
+	input := clusterstatus.HistoryExportInput{
+		Scope:   c.Query("scope"),
+		Search:  c.Query("search"),
+		Health:  model.ClusterHealthStatus(strings.TrimSpace(c.Query("status"))),
+		StartAt: startAt,
+		EndAt:   endAt,
+	}
+	if rawModelID := strings.TrimSpace(c.Query("model_id")); rawModelID != "" {
+		input.ModelID, err = strconv.Atoi(rawModelID)
+		if err != nil || input.ModelID <= 0 {
+			common.ApiErrorMsg(c, "invalid model_id")
+			return
+		}
+	}
+	if rawClusterID := strings.TrimSpace(c.Query("cluster_id")); rawClusterID != "" {
+		input.ClusterID, err = strconv.ParseInt(rawClusterID, 10, 64)
+		if err != nil || input.ClusterID <= 0 {
+			common.ApiErrorMsg(c, "invalid cluster_id")
+			return
+		}
+	}
+
+	prepared, err := service.PrepareHistoryExport(c.Request.Context(), input)
+	if err != nil {
+		writeClusterServiceError(c, err)
+		return
+	}
+	c.Header("Content-Type", prepared.ContentType)
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, prepared.Filename))
+	c.Header("Cache-Control", "no-store")
+	c.Header("X-Content-Type-Options", "nosniff")
+	if err := prepared.WriteTo(c.Writer); err != nil {
+		common.SysError("write cluster telemetry history export failed: " + err.Error())
+		return
+	}
+	recordManageAudit(c, "cluster.export.history", map[string]interface{}{
+		"scope":         prepared.Scope,
+		"cluster_count": prepared.ClusterCount,
+		"sample_count":  prepared.SampleCount,
+		"start_at":      prepared.StartAt.UTC().Format(time.RFC3339),
+		"end_at":        prepared.EndAt.UTC().Format(time.RFC3339),
 	})
 }
 
@@ -284,8 +352,9 @@ func GetClusterTelemetryHistory(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, gin.H{
-		"available": false,
-		"items":     history,
+		"available":      true,
+		"retention_days": common.GetClusterTelemetryRetentionDays(),
+		"items":          history,
 	})
 }
 

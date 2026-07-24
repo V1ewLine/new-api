@@ -37,7 +37,12 @@ func setupClusterServiceTestDB(t *testing.T) {
 		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
 	})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.Model{}, &model.Cluster{}, &model.ClusterTelemetryLatest{}))
+	require.NoError(t, db.AutoMigrate(
+		&model.Model{},
+		&model.Cluster{},
+		&model.ClusterTelemetryLatest{},
+		&model.ClusterTelemetryHistory{},
+	))
 	model.DB = db
 	t.Cleanup(func() {
 		model.DB = previousDB
@@ -54,7 +59,7 @@ func testService(t *testing.T, client TelemetryAgentClient) *Service {
 		client,
 		SchemaV1Adapter{},
 		NewDefaultHealthEvaluator(2),
-		EmptyHistoryRepository{},
+		GORMHistoryRepository{},
 		func(string) error { return nil },
 		PollConfig{
 			Interval:         time.Second,
@@ -263,9 +268,14 @@ func TestVerifyCredentialActivatesCredentialAfterSuccessfulTelemetry(t *testing.
 	assert.Empty(t, verification.ErrorCode)
 	assert.Equal(t, model.ClusterCredentialActive, verification.Cluster.CredentialStatus)
 	assert.Greater(t, verification.Cluster.CredentialVerifiedAt, int64(0))
+	var historyRows []model.ClusterTelemetryHistory
+	require.NoError(t, model.DB.Where("cluster_id = ?", created.Cluster.ID).Find(&historyRows).Error)
+	require.Len(t, historyRows, 1)
+	assert.Equal(t, model.ClusterTelemetrySampleSuccess, historyRows[0].Status)
+	assert.NotEmpty(t, historyRows[0].NormalizedPayload)
 }
 
-func TestDeleteClusterRemovesConfigurationAndLatestTelemetry(t *testing.T) {
+func TestDeleteClusterRemovesConfigurationLatestAndHistoryTelemetry(t *testing.T) {
 	setupClusterServiceTestDB(t)
 	service := testService(t, failingAgentClient{})
 	linkedModel := createTestModel(t, "model-a", 1)
@@ -284,6 +294,17 @@ func TestDeleteClusterRemovesConfigurationAndLatestTelemetry(t *testing.T) {
 		RawPayload:        "{}",
 		NormalizedPayload: "{}",
 	}).Error)
+	collectionID := "history-collection-a"
+	require.NoError(t, model.DB.Create(&model.ClusterTelemetryHistory{
+		ClusterID:         cluster.ID,
+		CollectionID:      &collectionID,
+		Status:            model.ClusterTelemetrySampleSuccess,
+		HealthStatus:      model.ClusterHealthOnline,
+		SchemaVersion:     "1.0",
+		NormalizedPayload: "{}",
+		CollectedAt:       100,
+		CreatedAt:         100,
+	}).Error)
 
 	require.NoError(t, service.DeleteCluster(cluster.ID))
 
@@ -293,6 +314,11 @@ func TestDeleteClusterRemovesConfigurationAndLatestTelemetry(t *testing.T) {
 	telemetry, err := model.GetLatestClusterTelemetry(cluster.ID)
 	require.NoError(t, err)
 	assert.Nil(t, telemetry)
+	var historyCount int64
+	require.NoError(t, model.DB.Model(&model.ClusterTelemetryHistory{}).
+		Where("cluster_id = ?", cluster.ID).
+		Count(&historyCount).Error)
+	assert.Zero(t, historyCount)
 	require.ErrorIs(t, service.DeleteCluster(cluster.ID), ErrClusterNotFound)
 }
 
@@ -390,4 +416,13 @@ func TestPollClusterPersistsConsecutiveFailuresAndBackoff(t *testing.T) {
 	assert.Equal(t, model.ClusterHealthOffline, second.HealthStatus)
 	assert.GreaterOrEqual(t, second.NextPollAt, first.NextPollAt)
 	assert.False(t, strings.Contains(secondErr.Error(), "agent-token"))
+	var historyRows []model.ClusterTelemetryHistory
+	require.NoError(t, model.DB.Where("cluster_id = ?", cluster.ID).
+		Order("id ASC").
+		Find(&historyRows).Error)
+	require.Len(t, historyRows, 2)
+	assert.Equal(t, model.ClusterTelemetrySampleError, historyRows[0].Status)
+	assert.Equal(t, "AGENT_UNREACHABLE", historyRows[0].ErrorCode)
+	assert.Empty(t, historyRows[0].NormalizedPayload)
+	assert.Equal(t, model.ClusterHealthOffline, historyRows[1].HealthStatus)
 }
