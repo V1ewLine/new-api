@@ -1323,6 +1323,7 @@
     "Delete Auto-Disabled": "Xóa Tự động vô hiệu hóa",
     "Delete Channel": "Xóa Kênh",
     "Delete Channels?": "Xóa các kênh?",
+    "Delete cluster \"{{name}}\" and its stored telemetry? This action cannot be undone.": "Xóa cụm “{{name}}” và dữ liệu đo từ xa đã lưu? Không thể hoàn tác thao tác này.",
     "Delete condition": "Xóa điều kiện",
     "Delete Condition": "Xóa điều kiện",
     "Delete failed": "Xóa thất bại",

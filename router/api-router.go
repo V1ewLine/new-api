@@ -362,6 +362,7 @@ func SetApiRouter(router *gin.Engine) {
 			clusterRoute.POST("/", controller.CreateCluster)
 			clusterRoute.GET("/models/:modelId", controller.GetClusterModelDetail)
 			clusterRoute.GET("/:clusterId", controller.GetClusterDetail)
+			clusterRoute.DELETE("/:clusterId", controller.DeleteCluster)
 			clusterRoute.GET("/:clusterId/telemetry/latest", controller.GetClusterLatestTelemetry)
 			clusterRoute.GET("/:clusterId/telemetry/history", controller.GetClusterTelemetryHistory)
 			clusterRoute.POST("/:clusterId/refresh", controller.RefreshClusterTelemetry)

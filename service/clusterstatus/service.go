@@ -376,6 +376,17 @@ func (service *Service) GetCluster(clusterID int64) (*ClusterResponse, error) {
 	return service.clusterResponse(cluster, modelMap[cluster.ModelID], decodeLatestTelemetry(latest)), nil
 }
 
+func (service *Service) DeleteCluster(clusterID int64) error {
+	deleted, err := model.DeleteClusterByID(clusterID)
+	if err != nil {
+		return err
+	}
+	if !deleted {
+		return ErrClusterNotFound
+	}
+	return nil
+}
+
 func (service *Service) GetLatestTelemetry(clusterID int64) (*NormalizedTelemetry, error) {
 	if cluster, err := model.GetClusterByID(clusterID); err != nil {
 		return nil, err

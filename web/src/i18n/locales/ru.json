@@ -1323,6 +1323,7 @@
     "Delete Auto-Disabled": "Удалить автоматически отключенные",
     "Delete Channel": "Удалить канал",
     "Delete Channels?": "Удалить каналы?",
+    "Delete cluster \"{{name}}\" and its stored telemetry? This action cannot be undone.": "Удалить кластер «{{name}}» и сохранённые данные телеметрии? Это действие нельзя отменить.",
     "Delete condition": "Удалить условие",
     "Delete Condition": "Удалить условие",
     "Delete failed": "Не удалось удалить",

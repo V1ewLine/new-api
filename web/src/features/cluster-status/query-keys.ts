@@ -18,11 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 export const clusterQueryKeys = {
   all: ['cluster-status'] as const,
+  overviews: () => [...clusterQueryKeys.all, 'overview'] as const,
   overview: (params: object) =>
-    [...clusterQueryKeys.all, 'overview', params] as const,
+    [...clusterQueryKeys.overviews(), params] as const,
   modelOptions: () => [...clusterQueryKeys.all, 'model-options'] as const,
-  model: (modelId: number) =>
-    [...clusterQueryKeys.all, 'model', modelId] as const,
+  models: () => [...clusterQueryKeys.all, 'model'] as const,
+  model: (modelId: number) => [...clusterQueryKeys.models(), modelId] as const,
   cluster: (clusterId: number) =>
     [...clusterQueryKeys.all, 'cluster', clusterId] as const,
 }

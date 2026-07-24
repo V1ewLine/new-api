@@ -1323,6 +1323,7 @@
     "Delete Auto-Disabled": "删除自动禁用",
     "Delete Channel": "删除渠道",
     "Delete Channels?": "删除渠道？",
+    "Delete cluster \"{{name}}\" and its stored telemetry? This action cannot be undone.": "确定要删除集群“{{name}}”及其已存储的遥测数据吗？此操作无法撤销。",
     "Delete condition": "删除条件",
     "Delete Condition": "删除条件",
     "Delete failed": "删除失败",

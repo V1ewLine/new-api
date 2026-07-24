@@ -1,0 +1,35 @@
+{
+  "wall_seconds": 24.889,
+  "completed": 500,
+  "success": 500,
+  "failed": 0,
+  "success_rate_pct": 100.0,
+  "throughput_rps": 20.089,
+  "successful_rps": 20.089,
+  "latency_ms": {
+    "min": 3651.99,
+    "mean": 8458.75,
+    "p50": 9075.82,
+    "p90": 9872.02,
+    "p95": 12037.68,
+    "p99": 12836.43,
+    "max": 12866.17
+  },
+  "ttft_ms": {
+    "mean": null,
+    "p50": null,
+    "p95": null,
+    "p99": null
+  },
+  "tokens": {
+    "input_total": 77655,
+    "output_total": 64000,
+    "output_tokens_per_second": 2571.388,
+    "avg_output_per_success": 128.0
+  },
+  "attempts_total": 500,
+  "status_counts": {
+    "200": 500
+  },
+  "error_type_counts": {}
+}

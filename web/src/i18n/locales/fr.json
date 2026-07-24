@@ -1323,6 +1323,7 @@
     "Delete Auto-Disabled": "Supprimer les désactivés automatiquement",
     "Delete Channel": "Supprimer le canal",
     "Delete Channels?": "Supprimer les canaux ?",
+    "Delete cluster \"{{name}}\" and its stored telemetry? This action cannot be undone.": "Supprimer le cluster « {{name}} » et ses données de télémétrie enregistrées ? Cette action est irréversible.",
     "Delete condition": "Supprimer la condition",
     "Delete Condition": "Supprimer la condition",
     "Delete failed": "Échec de la suppression",

@@ -83,6 +83,29 @@ func CreateCluster(cluster *Cluster) error {
 	return DB.Create(cluster).Error
 }
 
+func DeleteClusterByID(id int64) (bool, error) {
+	if id <= 0 {
+		return false, nil
+	}
+
+	deleted := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Where("id = ?", id).Delete(&Cluster{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		if err := tx.Where("cluster_id = ?", id).Delete(&ClusterTelemetryLatest{}).Error; err != nil {
+			return err
+		}
+		deleted = true
+		return nil
+	})
+	return deleted, err
+}
+
 func GetClusterByID(id int64) (*Cluster, error) {
 	var cluster Cluster
 	err := DB.Where("id = ?", id).First(&cluster).Error

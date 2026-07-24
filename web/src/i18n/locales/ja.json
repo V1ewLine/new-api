@@ -1323,6 +1323,7 @@
     "Delete Auto-Disabled": "自動無効化されたものを削除",
     "Delete Channel": "チャネルを削除",
     "Delete Channels?": "チャネルを削除しますか?",
+    "Delete cluster \"{{name}}\" and its stored telemetry? This action cannot be undone.": "クラスター「{{name}}」と保存済みのテレメトリデータを削除しますか？この操作は元に戻せません。",
     "Delete condition": "条件を削除",
     "Delete Condition": "条件を削除",
     "Delete failed": "削除に失敗しました",

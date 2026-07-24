@@ -118,6 +118,37 @@ func TestCreateClusterResponseNeverContainsSecret(t *testing.T) {
 	assert.NotContains(t, storedCluster.LinkSecretCiphertext, "sensitive-agent-token")
 }
 
+func TestDeleteClusterRemovesConfigurationAndLatestTelemetry(t *testing.T) {
+	setupClusterServiceTestDB(t)
+	service := testService(t, failingAgentClient{})
+	linkedModel := createTestModel(t, "model-a", 1)
+	cluster := &model.Cluster{
+		ModelID:              linkedModel.Id,
+		ModelNameSnapshot:    linkedModel.ModelName,
+		Name:                 "cluster-a",
+		LinkSecretCiphertext: "encrypted-secret",
+		Enabled:              true,
+	}
+	require.NoError(t, model.CreateCluster(cluster))
+	require.NoError(t, model.DB.Create(&model.ClusterTelemetryLatest{
+		ClusterID:         cluster.ID,
+		SchemaVersion:     "1.0",
+		CollectionID:      "collection-a",
+		RawPayload:        "{}",
+		NormalizedPayload: "{}",
+	}).Error)
+
+	require.NoError(t, service.DeleteCluster(cluster.ID))
+
+	storedCluster, err := model.GetClusterByID(cluster.ID)
+	require.NoError(t, err)
+	assert.Nil(t, storedCluster)
+	telemetry, err := model.GetLatestClusterTelemetry(cluster.ID)
+	require.NoError(t, err)
+	assert.Nil(t, telemetry)
+	require.ErrorIs(t, service.DeleteCluster(cluster.ID), ErrClusterNotFound)
+}
+
 func TestOverviewCombinesSearchStatusAndModelPagination(t *testing.T) {
 	setupClusterServiceTestDB(t)
 	service := testService(t, failingAgentClient{})

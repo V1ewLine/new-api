@@ -93,6 +93,23 @@ func CreateCluster(c *gin.Context) {
 	common.ApiSuccess(c, response)
 }
 
+func DeleteCluster(c *gin.Context) {
+	clusterID, ok := requireClusterID(c)
+	if !ok {
+		return
+	}
+	service, err := clusterstatus.DefaultService()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := service.DeleteCluster(clusterID); err != nil {
+		writeClusterServiceError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
 func GetClusterModelDetail(c *gin.Context) {
 	modelID, err := strconv.Atoi(c.Param("modelId"))
 	if err != nil || modelID <= 0 {

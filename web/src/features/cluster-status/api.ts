@@ -52,6 +52,13 @@ export async function createCluster(payload: CreateClusterPayload) {
   return response.data
 }
 
+export async function deleteCluster(clusterId: number) {
+  const response = await api.delete<ApiResponse<null>>(
+    `/api/clusters/${clusterId}`
+  )
+  return response.data
+}
+
 export async function getClusterModelDetail(modelId: number) {
   const response = await api.get<ApiResponse<ModelDetail>>(
     `/api/clusters/models/${modelId}`

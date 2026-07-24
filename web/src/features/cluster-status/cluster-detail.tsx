@@ -16,11 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Alert02Icon, InformationCircleIcon } from '@hugeicons/core-free-icons'
+import {
+  Alert02Icon,
+  ArrowLeft01Icon,
+  Delete02Icon,
+  InformationCircleIcon,
+} from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -55,6 +61,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { getClusterDetail, refreshCluster } from './api'
+import { DeleteClusterDialog } from './components/delete-cluster-dialog'
 import { ClusterStatusBadge } from './components/status-badge'
 import {
   formatBytes,
@@ -423,7 +430,9 @@ function MachineTab(props: { telemetry?: NormalizedTelemetry }) {
 
 export function ClusterDetail(props: ClusterDetailProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const clusterQuery = useQuery({
     queryKey: clusterQueryKeys.cluster(props.clusterId),
     queryFn: async () => {
@@ -456,146 +465,191 @@ export function ClusterDetail(props: ClusterDetailProps) {
   const cluster = clusterQuery.data
 
   return (
-    <SectionPageLayout>
-      <SectionPageLayout.Breadcrumb>
-        <Button
-          variant='link'
-          size='sm'
-          nativeButton={false}
-          render={
-            cluster ? (
-              <Link
-                to='/cluster-status/models/$modelId'
-                params={{ modelId: String(cluster.model_id) }}
-              />
-            ) : (
-              <Link to='/cluster-status' />
-            )
-          }
-        >
-          {cluster?.model_name ?? t('Cluster Status')}
-        </Button>
-      </SectionPageLayout.Breadcrumb>
-      <SectionPageLayout.Title>
-        {cluster?.name ?? t('Cluster Details')}
-      </SectionPageLayout.Title>
-      <SectionPageLayout.Actions>
-        {cluster ? <ClusterStatusBadge status={cluster.health_status} /> : null}
-        <Button
-          variant='outline'
-          onClick={() => refreshMutation.mutate()}
-          disabled={refreshMutation.isPending || !cluster}
-        >
-          {refreshMutation.isPending ? (
-            <Spinner data-icon='inline-start' />
-          ) : (
+    <>
+      <SectionPageLayout>
+        <SectionPageLayout.Breadcrumb>
+          <Button
+            variant='ghost'
+            size='sm'
+            nativeButton={false}
+            render={
+              cluster ? (
+                <Link
+                  to='/cluster-status/models/$modelId'
+                  params={{ modelId: String(cluster.model_id) }}
+                />
+              ) : (
+                <Link to='/cluster-status' />
+              )
+            }
+          >
             <HugeiconsIcon
-              icon={InformationCircleIcon}
+              icon={ArrowLeft01Icon}
               strokeWidth={2}
               data-icon='inline-start'
             />
-          )}
-          {refreshMutation.isPending ? t('Refreshing...') : t('Refresh')}
-        </Button>
-      </SectionPageLayout.Actions>
-      <SectionPageLayout.Content>
-        {clusterQuery.isLoading ? (
-          <div className='flex flex-col gap-4'>
-            <Skeleton className='h-9 w-72' />
-            <Skeleton className='h-96 w-full rounded-xl' />
-          </div>
-        ) : null}
+            {t('Back')}
+          </Button>
+        </SectionPageLayout.Breadcrumb>
+        <SectionPageLayout.Title>
+          {cluster?.name ?? t('Cluster Details')}
+        </SectionPageLayout.Title>
+        <SectionPageLayout.Actions>
+          {cluster ? (
+            <ClusterStatusBadge status={cluster.health_status} />
+          ) : null}
+          <Button
+            variant='outline'
+            onClick={() => refreshMutation.mutate()}
+            disabled={refreshMutation.isPending || !cluster}
+          >
+            {refreshMutation.isPending ? (
+              <Spinner data-icon='inline-start' />
+            ) : (
+              <HugeiconsIcon
+                icon={InformationCircleIcon}
+                strokeWidth={2}
+                data-icon='inline-start'
+              />
+            )}
+            {refreshMutation.isPending ? t('Refreshing...') : t('Refresh')}
+          </Button>
+          <Button
+            variant='destructive'
+            onClick={() => setDeleteDialogOpen(true)}
+            disabled={!cluster}
+          >
+            <HugeiconsIcon
+              icon={Delete02Icon}
+              strokeWidth={2}
+              data-icon='inline-start'
+            />
+            {t('Delete')}
+          </Button>
+        </SectionPageLayout.Actions>
+        <SectionPageLayout.Content>
+          {clusterQuery.isLoading ? (
+            <div className='flex flex-col gap-4'>
+              <Skeleton className='h-9 w-72' />
+              <Skeleton className='h-96 w-full rounded-xl' />
+            </div>
+          ) : null}
 
-        {clusterQuery.isError ? (
-          <Card>
-            <CardContent>
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia variant='icon'>
-                    <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
-                  </EmptyMedia>
-                  <EmptyTitle>{t('Failed to load cluster details')}</EmptyTitle>
-                  <EmptyDescription>
-                    {clusterQuery.error instanceof Error
-                      ? clusterQuery.error.message
-                      : t('Please try again later.')}
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            </CardContent>
-          </Card>
-        ) : null}
+          {clusterQuery.isError ? (
+            <Card>
+              <CardContent>
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia variant='icon'>
+                      <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
+                    </EmptyMedia>
+                    <EmptyTitle>
+                      {t('Failed to load cluster details')}
+                    </EmptyTitle>
+                    <EmptyDescription>
+                      {clusterQuery.error instanceof Error
+                        ? clusterQuery.error.message
+                        : t('Please try again later.')}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              </CardContent>
+            </Card>
+          ) : null}
 
-        {cluster ? (
-          <div className='flex flex-col gap-4'>
-            {!cluster.model_available ? (
-              <Alert variant='destructive'>
-                <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
-                <AlertTitle>{t('Linked model is unavailable')}</AlertTitle>
-                <AlertDescription>
-                  {t(
-                    'The cluster is retained for audit, but the linked model is disabled or deleted.'
-                  )}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            {cluster.telemetry?.model_mismatch ? (
-              <Alert>
-                <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
-                <AlertTitle>{t('Reported model mismatch')}</AlertTitle>
-                <AlertDescription>
-                  {t(
-                    'The Agent-reported model does not match the linked New API model.'
-                  )}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            {cluster.last_error_code ? (
-              <Alert variant='destructive'>
-                <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
-                <AlertTitle>
-                  {pollErrorTitle(cluster.last_error_code, t)}
-                </AlertTitle>
-                <AlertDescription>
-                  {cluster.last_error_code === 'AGENT_SCHEMA_UNSUPPORTED'
-                    ? t(
-                        'The Agent returned an unsupported telemetry schema version.'
-                      )
-                    : cluster.last_error_code}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            {!cluster.telemetry ? (
-              <Alert>
-                <HugeiconsIcon icon={InformationCircleIcon} strokeWidth={2} />
-                <AlertTitle>{t('Waiting for telemetry')}</AlertTitle>
-                <AlertDescription>
-                  {t('The first successful Agent poll has not completed yet.')}
-                </AlertDescription>
-              </Alert>
-            ) : null}
+          {cluster ? (
+            <div className='flex flex-col gap-4'>
+              {!cluster.model_available ? (
+                <Alert variant='destructive'>
+                  <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
+                  <AlertTitle>{t('Linked model is unavailable')}</AlertTitle>
+                  <AlertDescription>
+                    {t(
+                      'The cluster is retained for audit, but the linked model is disabled or deleted.'
+                    )}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {cluster.telemetry?.model_mismatch ? (
+                <Alert>
+                  <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
+                  <AlertTitle>{t('Reported model mismatch')}</AlertTitle>
+                  <AlertDescription>
+                    {t(
+                      'The Agent-reported model does not match the linked New API model.'
+                    )}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {cluster.last_error_code ? (
+                <Alert variant='destructive'>
+                  <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
+                  <AlertTitle>
+                    {pollErrorTitle(cluster.last_error_code, t)}
+                  </AlertTitle>
+                  <AlertDescription>
+                    {cluster.last_error_code === 'AGENT_SCHEMA_UNSUPPORTED'
+                      ? t(
+                          'The Agent returned an unsupported telemetry schema version.'
+                        )
+                      : cluster.last_error_code}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {!cluster.telemetry ? (
+                <Alert>
+                  <HugeiconsIcon icon={InformationCircleIcon} strokeWidth={2} />
+                  <AlertTitle>{t('Waiting for telemetry')}</AlertTitle>
+                  <AlertDescription>
+                    {t(
+                      'The first successful Agent poll has not completed yet.'
+                    )}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
 
-            <Tabs defaultValue='overview'>
-              <TabsList variant='line'>
-                <TabsTrigger value='overview'>{t('Overview')}</TabsTrigger>
-                <TabsTrigger value='engine'>{t('Engine Metrics')}</TabsTrigger>
-                <TabsTrigger value='machine'>
-                  {t('Machine Metrics')}
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value='overview'>
-                <OverviewTab cluster={cluster} telemetry={cluster.telemetry} />
-              </TabsContent>
-              <TabsContent value='engine'>
-                <EngineTab telemetry={cluster.telemetry} />
-              </TabsContent>
-              <TabsContent value='machine'>
-                <MachineTab telemetry={cluster.telemetry} />
-              </TabsContent>
-            </Tabs>
-          </div>
-        ) : null}
-      </SectionPageLayout.Content>
-    </SectionPageLayout>
+              <Tabs defaultValue='overview'>
+                <TabsList variant='line'>
+                  <TabsTrigger value='overview'>{t('Overview')}</TabsTrigger>
+                  <TabsTrigger value='engine'>
+                    {t('Engine Metrics')}
+                  </TabsTrigger>
+                  <TabsTrigger value='machine'>
+                    {t('Machine Metrics')}
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value='overview'>
+                  <OverviewTab
+                    cluster={cluster}
+                    telemetry={cluster.telemetry}
+                  />
+                </TabsContent>
+                <TabsContent value='engine'>
+                  <EngineTab telemetry={cluster.telemetry} />
+                </TabsContent>
+                <TabsContent value='machine'>
+                  <MachineTab telemetry={cluster.telemetry} />
+                </TabsContent>
+              </Tabs>
+            </div>
+          ) : null}
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
+
+      <DeleteClusterDialog
+        cluster={cluster ?? null}
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onDeleted={() => {
+          if (!cluster) {
+            return
+          }
+          void navigate({
+            to: '/cluster-status/models/$modelId',
+            params: { modelId: String(cluster.model_id) },
+          })
+        }}
+      />
+    </>
   )
 }
