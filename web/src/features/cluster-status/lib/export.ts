@@ -87,6 +87,22 @@ export function buildClusterHistoryExportParams(
   return params
 }
 
+export function buildClusterHistoryPresetRange(
+  minutes: number,
+  availableFrom?: number,
+  now = Date.now()
+): { start: Date; end: Date } {
+  const end = new Date(Math.floor(now / 1000) * 1000)
+  const requestedStart = end.getTime() - minutes * 60000
+  const availableStart = availableFrom ? availableFrom * 1000 : requestedStart
+  return {
+    start: new Date(
+      Math.min(Math.max(requestedStart, availableStart), end.getTime() - 1000)
+    ),
+    end,
+  }
+}
+
 export function toRFC3339Seconds(date: Date): string {
   const rounded = new Date(Math.floor(date.getTime() / 1000) * 1000)
   return rounded.toISOString().replace('.000Z', 'Z')

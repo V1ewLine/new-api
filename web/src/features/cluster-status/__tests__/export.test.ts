@@ -22,6 +22,7 @@ import { describe, test } from 'node:test'
 import {
   buildClusterExportParams,
   buildClusterHistoryExportParams,
+  buildClusterHistoryPresetRange,
   getExportFilename,
   validateClusterHistoryRange,
 } from '../lib/export.ts'
@@ -103,6 +104,26 @@ describe('cluster export page granularity', () => {
 })
 
 describe('cluster history export time window', () => {
+  test('builds deterministic quick ranges and clamps them to available history', () => {
+    const now = new Date('2026-07-25T08:00:00.900Z').getTime()
+
+    assert.deepEqual(buildClusterHistoryPresetRange(60, undefined, now), {
+      start: new Date('2026-07-25T07:00:00Z'),
+      end: new Date('2026-07-25T08:00:00Z'),
+    })
+    assert.deepEqual(
+      buildClusterHistoryPresetRange(
+        60,
+        new Date('2026-07-25T07:45:00Z').getTime() / 1000,
+        now
+      ),
+      {
+        start: new Date('2026-07-25T07:45:00Z'),
+        end: new Date('2026-07-25T08:00:00Z'),
+      }
+    )
+  })
+
   test('preserves exact seconds and maps the current page scope', () => {
     assert.deepEqual(
       buildClusterHistoryExportParams({

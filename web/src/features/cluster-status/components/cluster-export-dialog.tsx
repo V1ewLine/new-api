@@ -166,7 +166,10 @@ export function ClusterExportDialog(props: ClusterExportDialogProps) {
   const selected = options[selection] ?? options[0]
 
   async function runExport() {
+    if (exporting) return
+
     setExporting(true)
+    const exportToastId = toast.loading(t('Exporting...'))
     try {
       let result: { blob: Blob; filename: string }
       if (source === 'history') {
@@ -216,14 +219,17 @@ export function ClusterExportDialog(props: ClusterExportDialogProps) {
         )
       }
       saveExportFile(result.blob, result.filename)
-      toast.success(t('Cluster data exported'))
+      toast.success(t('Cluster data exported'), {
+        id: exportToastId,
+        description: result.filename,
+      })
       closeDialog()
     } catch (error) {
       const message =
         error instanceof Error && error.message !== 'Cluster export failed'
           ? error.message
           : t('Failed to export cluster data')
-      toast.error(message)
+      toast.error(message, { id: exportToastId })
     } finally {
       setExporting(false)
     }
@@ -239,6 +245,8 @@ export function ClusterExportDialog(props: ClusterExportDialogProps) {
   }
 
   function handleOpenChange(open: boolean) {
+    if (exporting && !open) return
+
     if (open) {
       props.onOpenChange(true)
       return
@@ -248,7 +256,7 @@ export function ClusterExportDialog(props: ClusterExportDialogProps) {
 
   return (
     <Dialog open={props.open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent showCloseButton={!exporting}>
         <DialogHeader>
           <DialogTitle>{t('Export Cluster Data')}</DialogTitle>
           <DialogDescription>
@@ -339,11 +347,24 @@ export function ClusterExportDialog(props: ClusterExportDialogProps) {
           )}
         </FieldGroup>
 
+        <div
+          className='sr-only'
+          role='status'
+          aria-live='polite'
+          aria-atomic='true'
+        >
+          {exporting ? t('Exporting...') : null}
+        </div>
+
         <DialogFooter>
           <Button variant='outline' onClick={closeDialog} disabled={exporting}>
             {t('Cancel')}
           </Button>
-          <Button onClick={runExport} disabled={exporting}>
+          <Button
+            onClick={runExport}
+            disabled={exporting}
+            aria-busy={exporting}
+          >
             {exporting ? (
               <Spinner data-icon='inline-start' />
             ) : (

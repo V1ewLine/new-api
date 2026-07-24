@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -28,6 +28,8 @@ import {
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import dayjs from '@/lib/dayjs'
+
+import { buildClusterHistoryPresetRange } from '../lib/export'
 
 type ClusterHistoryRangeFieldsProps = {
   start: Date
@@ -54,19 +56,11 @@ export function ClusterHistoryRangeFields(
   const startId = useId()
   const endId = useId()
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const [selectedPreset, setSelectedPreset] = useState<number | null>(null)
 
   function applyQuickRange(minutes: number) {
-    const end = new Date(Math.floor(Date.now() / 1000) * 1000)
-    const requestedStart = end.getTime() - minutes * 60000
-    const availableStart = props.availableFrom
-      ? props.availableFrom * 1000
-      : requestedStart
-    props.onChange({
-      start: new Date(
-        Math.min(Math.max(requestedStart, availableStart), end.getTime() - 1000)
-      ),
-      end,
-    })
+    props.onChange(buildClusterHistoryPresetRange(minutes, props.availableFrom))
+    setSelectedPreset(minutes)
   }
 
   return (
@@ -81,7 +75,10 @@ export function ClusterHistoryRangeFields(
             value={toInputValue(props.start)}
             onChange={(event) => {
               const start = fromInputValue(event.target.value)
-              if (start) props.onChange({ start, end: props.end })
+              if (start) {
+                setSelectedPreset(null)
+                props.onChange({ start, end: props.end })
+              }
             }}
             disabled={props.disabled}
           />
@@ -95,7 +92,10 @@ export function ClusterHistoryRangeFields(
             value={toInputValue(props.end)}
             onChange={(event) => {
               const end = fromInputValue(event.target.value)
-              if (end) props.onChange({ start: props.start, end })
+              if (end) {
+                setSelectedPreset(null)
+                props.onChange({ start: props.start, end })
+              }
             }}
             disabled={props.disabled}
           />
@@ -113,10 +113,13 @@ export function ClusterHistoryRangeFields(
           <Button
             key={preset.minutes}
             type='button'
-            variant='outline'
+            variant={
+              selectedPreset === preset.minutes ? 'secondary' : 'outline'
+            }
             size='sm'
             onClick={() => applyQuickRange(preset.minutes)}
             disabled={props.disabled}
+            aria-pressed={selectedPreset === preset.minutes}
           >
             {t(preset.label)}
           </Button>
