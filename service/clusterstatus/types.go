@@ -15,6 +15,7 @@ var (
 	ErrClusterPollInProgress        = errors.New("cluster poll is already in progress")
 	ErrInvalidLinkSecret            = errors.New("invalid cluster link secret")
 	ErrClusterCredentialUnavailable = errors.New("cluster credential cannot be rotated")
+	ErrClusterTrendInvalid          = errors.New("invalid cluster trend request")
 )
 
 type PollFailureError struct {

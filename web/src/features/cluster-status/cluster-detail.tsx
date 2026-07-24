@@ -71,18 +71,39 @@ import { ClusterExportDialog } from './components/cluster-export-dialog'
 import { DeleteClusterDialog } from './components/delete-cluster-dialog'
 import { RotateClusterCredentialDialog } from './components/rotate-cluster-credential-dialog'
 import { ClusterStatusBadge } from './components/status-badge'
+import { TelemetryTimeRangeControl } from './components/telemetry-time-range-control'
+import {
+  EngineTrendCharts,
+  MachineTrendCharts,
+  OverviewTrendCharts,
+} from './components/telemetry-trend-groups'
 import { useClusterRefreshInterval } from './hooks/use-cluster-refresh-interval'
+import {
+  useClusterTelemetryTrends,
+  type ClusterTelemetryTrendQuery,
+} from './hooks/use-cluster-telemetry-trends'
 import {
   formatBytes,
   formatCompactNumber,
   formatPercent,
   formatTimestamp,
 } from './lib/format'
+import {
+  DEFAULT_TELEMETRY_TREND_RANGE,
+  type TelemetryTrendTimeRange,
+} from './lib/trend-range'
 import { clusterQueryKeys } from './query-keys'
 import type { Cluster, NormalizedTelemetry } from './types'
 
 type ClusterDetailProps = {
   clusterId: number
+}
+
+type TrendTabProps = {
+  clusterId: number
+  range: TelemetryTrendTimeRange
+  refreshInterval: number
+  trendQuery: ClusterTelemetryTrendQuery
 }
 
 function MetricCard(props: {
@@ -152,10 +173,12 @@ function credentialSetupDescription(
   )
 }
 
-function OverviewTab(props: {
-  cluster: Cluster
-  telemetry?: NormalizedTelemetry
-}) {
+function OverviewTab(
+  props: {
+    cluster: Cluster
+    telemetry?: NormalizedTelemetry
+  } & TrendTabProps
+) {
   const { t } = useTranslation()
   const telemetry = props.telemetry
   return (
@@ -247,19 +270,17 @@ function OverviewTab(props: {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Trend History')}</CardTitle>
-          <CardDescription>
-            {t('Historical charts are not available in phase one.')}
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <OverviewTrendCharts
+        clusterId={props.clusterId}
+        range={props.range}
+        refreshInterval={props.refreshInterval}
+        query={props.trendQuery}
+      />
     </div>
   )
 }
 
-function EngineTab(props: { telemetry?: NormalizedTelemetry }) {
+function EngineTab(props: { telemetry?: NormalizedTelemetry } & TrendTabProps) {
   const { t } = useTranslation()
   const engine = props.telemetry?.engine
   return (
@@ -298,36 +319,19 @@ function EngineTab(props: { telemetry?: NormalizedTelemetry }) {
           value={engine ? `${engine.request_duration_ms.toFixed(1)} ms` : '—'}
         />
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('SGLang Load Snapshots')}</CardTitle>
-          <CardDescription>
-            {t('{{count}} data-parallel snapshots reported', {
-              count: engine?.loads.length ?? 0,
-            })}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant='icon'>
-                <HugeiconsIcon icon={InformationCircleIcon} strokeWidth={2} />
-              </EmptyMedia>
-              <EmptyTitle>{t('Trend history is not enabled')}</EmptyTitle>
-              <EmptyDescription>
-                {t(
-                  'Current values are shown above without fabricated history.'
-                )}
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        </CardContent>
-      </Card>
+      <EngineTrendCharts
+        clusterId={props.clusterId}
+        range={props.range}
+        refreshInterval={props.refreshInterval}
+        query={props.trendQuery}
+      />
     </div>
   )
 }
 
-function MachineTab(props: { telemetry?: NormalizedTelemetry }) {
+function MachineTab(
+  props: { telemetry?: NormalizedTelemetry } & TrendTabProps
+) {
   const { t } = useTranslation()
   const machine = props.telemetry?.machine
   const system = machine?.system
@@ -355,6 +359,13 @@ function MachineTab(props: { telemetry?: NormalizedTelemetry }) {
           value={formatPercent(system?.memory_utilization_percent)}
         />
       </div>
+
+      <MachineTrendCharts
+        clusterId={props.clusterId}
+        range={props.range}
+        refreshInterval={props.refreshInterval}
+        query={props.trendQuery}
+      />
 
       <Card>
         <CardHeader>
@@ -470,6 +481,9 @@ export function ClusterDetail(props: ClusterDetailProps) {
   const queryClient = useQueryClient()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [trendRange, setTrendRange] = useState<TelemetryTrendTimeRange>(() => ({
+    ...DEFAULT_TELEMETRY_TREND_RANGE,
+  }))
   const refreshInterval = useClusterRefreshInterval()
   const clusterQuery = useQuery({
     queryKey: clusterQueryKeys.cluster(props.clusterId),
@@ -481,6 +495,12 @@ export function ClusterDetail(props: ClusterDetailProps) {
       return response.data
     },
     refetchInterval: refreshInterval,
+  })
+  const trendQuery = useClusterTelemetryTrends({
+    clusterId: props.clusterId,
+    range: trendRange,
+    refreshInterval,
+    enabled: Boolean(clusterQuery.data),
   })
   const refreshMutation = useMutation({
     mutationFn: async () => {
@@ -718,6 +738,26 @@ export function ClusterDetail(props: ClusterDetailProps) {
                 </Alert>
               ) : null}
 
+              <div className='flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between'>
+                <div>
+                  <h2 className='font-medium'>{t('Historical Trends')}</h2>
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'All charts share this time window. Relative windows refresh automatically.'
+                    )}
+                  </p>
+                </div>
+                <div className='flex items-center justify-end gap-2'>
+                  {trendQuery.isFetching ? <Spinner /> : null}
+                  <TelemetryTimeRangeControl
+                    value={trendRange}
+                    onChange={setTrendRange}
+                    retentionDays={trendQuery.data?.retention_days}
+                    availableFrom={trendQuery.data?.available_from}
+                  />
+                </div>
+              </div>
+
               <Tabs defaultValue='overview'>
                 <TabsList variant='line'>
                   <TabsTrigger value='overview'>{t('Overview')}</TabsTrigger>
@@ -732,13 +772,29 @@ export function ClusterDetail(props: ClusterDetailProps) {
                   <OverviewTab
                     cluster={cluster}
                     telemetry={cluster.telemetry}
+                    clusterId={props.clusterId}
+                    range={trendRange}
+                    refreshInterval={refreshInterval}
+                    trendQuery={trendQuery}
                   />
                 </TabsContent>
                 <TabsContent value='engine'>
-                  <EngineTab telemetry={cluster.telemetry} />
+                  <EngineTab
+                    telemetry={cluster.telemetry}
+                    clusterId={props.clusterId}
+                    range={trendRange}
+                    refreshInterval={refreshInterval}
+                    trendQuery={trendQuery}
+                  />
                 </TabsContent>
                 <TabsContent value='machine'>
-                  <MachineTab telemetry={cluster.telemetry} />
+                  <MachineTab
+                    telemetry={cluster.telemetry}
+                    clusterId={props.clusterId}
+                    range={trendRange}
+                    refreshInterval={refreshInterval}
+                    trendQuery={trendQuery}
+                  />
                 </TabsContent>
               </Tabs>
             </div>

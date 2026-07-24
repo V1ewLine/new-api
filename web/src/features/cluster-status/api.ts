@@ -33,6 +33,8 @@ import type {
   ModelDetail,
   ModelOption,
   NormalizedTelemetry,
+  TelemetryTrendParams,
+  TelemetryTrendResponse,
 } from './types'
 
 export async function getClusterStatusSettings() {
@@ -139,6 +141,17 @@ export async function getClusterDetail(clusterId: number) {
 export async function getLatestClusterTelemetry(clusterId: number) {
   const response = await api.get<ApiResponse<NormalizedTelemetry | null>>(
     `/api/clusters/${clusterId}/telemetry/latest`
+  )
+  return response.data
+}
+
+export async function getClusterTelemetryTrends(
+  clusterId: number,
+  params: TelemetryTrendParams
+) {
+  const response = await api.get<ApiResponse<TelemetryTrendResponse>>(
+    `/api/clusters/${clusterId}/telemetry/trends`,
+    { params, disableDuplicate: true }
   )
   return response.data
 }

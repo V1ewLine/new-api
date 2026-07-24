@@ -238,3 +238,45 @@ export type CredentialVerificationResponse = {
   error_code?: string
   cluster: Cluster
 }
+
+export type TelemetryTrendGPUPoint = {
+  id: string
+  index: number
+  name: string
+  power_watts?: number
+}
+
+export type TelemetryTrendPoint = {
+  timestamp: number
+  sampled_at?: number
+  sample_count: number
+  success_count: number
+  poll_success_percent: number
+  engine_availability_percent?: number
+  machine_availability_percent?: number
+  running_requests?: number
+  waiting_requests?: number
+  token_usage?: number
+  throughput?: number
+  cache_usage?: number
+  gpu_board_power_watts?: number
+  cpu_utilization_percent?: number
+  memory_utilization_percent?: number
+  gpus: TelemetryTrendGPUPoint[]
+}
+
+export type TelemetryTrendResponse = {
+  start_at: string
+  end_at: string
+  available_from: number
+  retention_days: number
+  bucket_seconds: number
+  sample_count: number
+  points: TelemetryTrendPoint[]
+}
+
+export type TelemetryTrendParams = {
+  start_at: string
+  end_at: string
+  max_points: number
+}

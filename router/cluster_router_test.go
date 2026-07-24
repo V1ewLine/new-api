@@ -27,6 +27,7 @@ func TestClusterMutationRoutesRequireAdminAuthentication(t *testing.T) {
 		{method: http.MethodGet, path: "/api/clusters/settings", route: "/api/clusters/settings"},
 		{method: http.MethodGet, path: "/api/clusters/export/latest?scope=models&format=csv", route: "/api/clusters/export/latest"},
 		{method: http.MethodGet, path: "/api/clusters/export/history?scope=all", route: "/api/clusters/export/history"},
+		{method: http.MethodGet, path: "/api/clusters/1/telemetry/trends?start_at=2026-07-25T00:00:00Z&end_at=2026-07-25T01:00:00Z", route: "/api/clusters/:clusterId/telemetry/trends"},
 		{method: http.MethodDelete, path: "/api/clusters/1", route: "/api/clusters/:clusterId"},
 		{method: http.MethodPost, path: "/api/clusters/1/credential/rotate", route: "/api/clusters/:clusterId/credential/rotate"},
 		{method: http.MethodPost, path: "/api/clusters/1/credential/verify", route: "/api/clusters/:clusterId/credential/verify"},

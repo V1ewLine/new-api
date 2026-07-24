@@ -27,4 +27,17 @@ export const clusterQueryKeys = {
   model: (modelId: number) => [...clusterQueryKeys.models(), modelId] as const,
   cluster: (clusterId: number) =>
     [...clusterQueryKeys.all, 'cluster', clusterId] as const,
+  trends: (
+    clusterId: number,
+    rangeKey: readonly (string | number)[],
+    maxPoints: number
+  ) =>
+    [
+      ...clusterQueryKeys.all,
+      'cluster',
+      clusterId,
+      'trends',
+      ...rangeKey,
+      maxPoints,
+    ] as const,
 }

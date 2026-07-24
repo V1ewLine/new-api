@@ -358,6 +358,48 @@ func GetClusterTelemetryHistory(c *gin.Context) {
 	})
 }
 
+func GetClusterTelemetryTrends(c *gin.Context) {
+	clusterID, ok := requireClusterID(c)
+	if !ok {
+		return
+	}
+	startAt, err := time.Parse(time.RFC3339, strings.TrimSpace(c.Query("start_at")))
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid start_at")
+		return
+	}
+	endAt, err := time.Parse(time.RFC3339, strings.TrimSpace(c.Query("end_at")))
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid end_at")
+		return
+	}
+	maxPoints := 0
+	if rawMaxPoints := strings.TrimSpace(c.Query("max_points")); rawMaxPoints != "" {
+		maxPoints, err = strconv.Atoi(rawMaxPoints)
+		if err != nil {
+			common.ApiErrorMsg(c, "invalid max_points")
+			return
+		}
+	}
+	service, err := clusterstatus.DefaultService()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	trends, err := service.GetTelemetryTrends(c.Request.Context(), clusterstatus.TelemetryTrendInput{
+		ClusterID: clusterID,
+		StartAt:   startAt,
+		EndAt:     endAt,
+		MaxPoints: maxPoints,
+	})
+	if err != nil {
+		writeClusterServiceError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	common.ApiSuccess(c, trends)
+}
+
 func requireClusterID(c *gin.Context) (int64, bool) {
 	clusterID, err := strconv.ParseInt(c.Param("clusterId"), 10, 64)
 	if err != nil || clusterID <= 0 {
@@ -390,6 +432,8 @@ func writeClusterServiceError(c *gin.Context, err error) {
 		common.ApiErrorMsg(c, "invalid cluster export request")
 	case errors.Is(err, clusterstatus.ErrClusterExportTooLarge):
 		common.ApiErrorMsg(c, "cluster export exceeds the allowed size")
+	case errors.Is(err, clusterstatus.ErrClusterTrendInvalid):
+		common.ApiErrorMsg(c, "invalid cluster trend request")
 	default:
 		var pollFailure *clusterstatus.PollFailureError
 		if errors.As(err, &pollFailure) {
