@@ -9,11 +9,12 @@ import (
 )
 
 var (
-	ErrClusterNotFound       = errors.New("cluster not found")
-	ErrClusterModelNotFound  = errors.New("cluster model not found")
-	ErrClusterModelDisabled  = errors.New("cluster model is disabled")
-	ErrClusterPollInProgress = errors.New("cluster poll is already in progress")
-	ErrInvalidLinkSecret     = errors.New("invalid cluster link secret")
+	ErrClusterNotFound              = errors.New("cluster not found")
+	ErrClusterModelNotFound         = errors.New("cluster model not found")
+	ErrClusterModelDisabled         = errors.New("cluster model is disabled")
+	ErrClusterPollInProgress        = errors.New("cluster poll is already in progress")
+	ErrInvalidLinkSecret            = errors.New("invalid cluster link secret")
+	ErrClusterCredentialUnavailable = errors.New("cluster credential cannot be rotated")
 )
 
 type PollFailureError struct {
@@ -28,10 +29,9 @@ func (err *PollFailureError) Error() string {
 }
 
 type CreateClusterInput struct {
-	ModelID          int
-	Name             string
-	AgentAddress     string
-	AgentBearerToken string
+	ModelID      int
+	Name         string
+	AgentAddress string
 }
 
 type ResolvedAgentConnection struct {
@@ -160,21 +160,36 @@ type TelemetryAggregateMetrics struct {
 }
 
 type ClusterResponse struct {
-	ID                  int64                     `json:"id"`
-	ModelID             int                       `json:"model_id"`
-	ModelName           string                    `json:"model_name"`
-	ModelAvailable      bool                      `json:"model_available"`
-	Name                string                    `json:"name"`
-	Enabled             bool                      `json:"enabled"`
-	HealthStatus        model.ClusterHealthStatus `json:"health_status"`
-	HasLinkSecret       bool                      `json:"has_link_secret"`
-	LastPolledAt        int64                     `json:"last_polled_at"`
-	LastSuccessAt       int64                     `json:"last_success_at"`
-	ConsecutiveFailures int                       `json:"consecutive_failures"`
-	LastErrorCode       string                    `json:"last_error_code,omitempty"`
-	CreatedAt           int64                     `json:"created_at"`
-	UpdatedAt           int64                     `json:"updated_at"`
-	Telemetry           *NormalizedTelemetry      `json:"telemetry,omitempty"`
+	ID                   int64                         `json:"id"`
+	ModelID              int                           `json:"model_id"`
+	ModelName            string                        `json:"model_name"`
+	ModelAvailable       bool                          `json:"model_available"`
+	Name                 string                        `json:"name"`
+	Enabled              bool                          `json:"enabled"`
+	HealthStatus         model.ClusterHealthStatus     `json:"health_status"`
+	CredentialStatus     model.ClusterCredentialStatus `json:"credential_status"`
+	CredentialVersion    int                           `json:"credential_version"`
+	CredentialIssuedAt   int64                         `json:"credential_issued_at"`
+	CredentialVerifiedAt int64                         `json:"credential_verified_at"`
+	HasLinkSecret        bool                          `json:"has_link_secret"`
+	LastPolledAt         int64                         `json:"last_polled_at"`
+	LastSuccessAt        int64                         `json:"last_success_at"`
+	ConsecutiveFailures  int                           `json:"consecutive_failures"`
+	LastErrorCode        string                        `json:"last_error_code,omitempty"`
+	CreatedAt            int64                         `json:"created_at"`
+	UpdatedAt            int64                         `json:"updated_at"`
+	Telemetry            *NormalizedTelemetry          `json:"telemetry,omitempty"`
+}
+
+type CredentialIssueResponse struct {
+	Cluster        ClusterResponse `json:"cluster"`
+	BootstrapToken string          `json:"bootstrap_token"`
+}
+
+type CredentialVerificationResponse struct {
+	Verified  bool            `json:"verified"`
+	ErrorCode string          `json:"error_code,omitempty"`
+	Cluster   ClusterResponse `json:"cluster"`
 }
 
 type ModelOption struct {

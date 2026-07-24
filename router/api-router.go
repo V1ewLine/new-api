@@ -366,6 +366,8 @@ func SetApiRouter(router *gin.Engine) {
 			clusterRoute.GET("/:clusterId/telemetry/latest", controller.GetClusterLatestTelemetry)
 			clusterRoute.GET("/:clusterId/telemetry/history", controller.GetClusterTelemetryHistory)
 			clusterRoute.POST("/:clusterId/refresh", controller.RefreshClusterTelemetry)
+			clusterRoute.POST("/:clusterId/credential/rotate", controller.RotateClusterCredential)
+			clusterRoute.POST("/:clusterId/credential/verify", controller.VerifyClusterCredential)
 		}
 
 		// Deployments (model deployment management)

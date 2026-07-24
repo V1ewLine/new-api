@@ -73,10 +73,18 @@ func DefaultPollConfig() PollConfig {
 
 func Initialize() error {
 	config := DefaultPollConfig()
-	protector, err := NewAESGCMSecretProtector(common.CryptoSecret)
+	protectionKey, keySource, err := resolveClusterSecretProtectionKey()
 	if err != nil {
 		return err
 	}
+	protector, err := NewAESGCMSecretProtector(protectionKey)
+	if err != nil {
+		return err
+	}
+	logger.LogInfo(context.Background(), fmt.Sprintf(
+		"cluster secret protection initialized: source=%s",
+		keySource,
+	))
 	clusterService := NewService(
 		TemporaryLinkResolver{},
 		protector,

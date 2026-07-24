@@ -10,7 +10,9 @@ build
 logs
 web/dist
 web/node_modules
+/node_modules/
 .env
+.new-api-cluster-secret.key
 one-api
 new-api
 /__debug_bin*
@@ -23,6 +25,7 @@ tiktoken_cache
 plans
 .claude
 .cursor
+/sglang_telemetry_agent/
 
 electron/node_modules
 electron/dist

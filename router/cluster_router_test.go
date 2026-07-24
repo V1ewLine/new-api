@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestClusterDeleteRouteRequiresAdminAuthentication(t *testing.T) {
+func TestClusterMutationRoutesRequireAdminAuthentication(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	SetApiRouter(engine)
@@ -19,13 +19,27 @@ func TestClusterDeleteRouteRequiresAdminAuthentication(t *testing.T) {
 	for _, route := range engine.Routes() {
 		routes[route.Method+" "+route.Path] = struct{}{}
 	}
-	_, registered := routes[http.MethodDelete+" /api/clusters/:clusterId"]
-	require.True(t, registered)
+	testCases := []struct {
+		method string
+		path   string
+		route  string
+	}{
+		{method: http.MethodDelete, path: "/api/clusters/1", route: "/api/clusters/:clusterId"},
+		{method: http.MethodPost, path: "/api/clusters/1/credential/rotate", route: "/api/clusters/:clusterId/credential/rotate"},
+		{method: http.MethodPost, path: "/api/clusters/1/credential/verify", route: "/api/clusters/:clusterId/credential/verify"},
+	}
 
-	request := httptest.NewRequest(http.MethodDelete, "/api/clusters/1", nil)
-	response := httptest.NewRecorder()
-	engine.ServeHTTP(response, request)
+	for _, testCase := range testCases {
+		t.Run(testCase.method+" "+testCase.route, func(t *testing.T) {
+			_, registered := routes[testCase.method+" "+testCase.route]
+			require.True(t, registered)
 
-	assert.Equal(t, http.StatusUnauthorized, response.Code)
-	assert.Contains(t, response.Body.String(), "AUTH_UNAUTHORIZED")
+			request := httptest.NewRequest(testCase.method, testCase.path, nil)
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusUnauthorized, response.Code)
+			assert.Contains(t, response.Body.String(), "AUTH_UNAUTHORIZED")
+		})
+	}
 }

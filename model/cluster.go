@@ -20,24 +20,35 @@ const (
 	ClusterHealthOffline  ClusterHealthStatus = "offline"
 )
 
+type ClusterCredentialStatus string
+
+const (
+	ClusterCredentialPending ClusterCredentialStatus = "pending"
+	ClusterCredentialActive  ClusterCredentialStatus = "active"
+)
+
 type Cluster struct {
-	ID                   int64               `json:"id" gorm:"primaryKey"`
-	ModelID              int                 `json:"model_id" gorm:"index;not null"`
-	ModelNameSnapshot    string              `json:"model_name_snapshot" gorm:"type:varchar(128);not null"`
-	Name                 string              `json:"name" gorm:"type:varchar(128);not null;index"`
-	LinkSecretCiphertext string              `json:"-" gorm:"type:text;not null"`
-	Enabled              bool                `json:"enabled" gorm:"not null"`
-	HealthStatus         ClusterHealthStatus `json:"health_status" gorm:"type:varchar(32);not null;index"`
-	LastPolledAt         int64               `json:"last_polled_at" gorm:"bigint"`
-	LastSuccessAt        int64               `json:"last_success_at" gorm:"bigint"`
-	ConsecutiveFailures  int                 `json:"consecutive_failures"`
-	LastErrorCode        string              `json:"last_error_code,omitempty" gorm:"type:varchar(64)"`
-	LastFailurePayload   string              `json:"-" gorm:"type:text"`
-	NextPollAt           int64               `json:"-" gorm:"bigint;index"`
-	PollLockedBy         string              `json:"-" gorm:"type:varchar(128);index"`
-	PollLockedUntil      int64               `json:"-" gorm:"bigint;index"`
-	CreatedAt            int64               `json:"created_at" gorm:"bigint;index"`
-	UpdatedAt            int64               `json:"updated_at" gorm:"bigint;index"`
+	ID                   int64                   `json:"id" gorm:"primaryKey"`
+	ModelID              int                     `json:"model_id" gorm:"index;not null"`
+	ModelNameSnapshot    string                  `json:"model_name_snapshot" gorm:"type:varchar(128);not null"`
+	Name                 string                  `json:"name" gorm:"type:varchar(128);not null;index"`
+	LinkSecretCiphertext string                  `json:"-" gorm:"type:text;not null"`
+	CredentialStatus     ClusterCredentialStatus `json:"credential_status" gorm:"type:varchar(32);index"`
+	CredentialVersion    int                     `json:"credential_version"`
+	CredentialIssuedAt   int64                   `json:"credential_issued_at" gorm:"bigint"`
+	CredentialVerifiedAt int64                   `json:"credential_verified_at" gorm:"bigint"`
+	Enabled              bool                    `json:"enabled" gorm:"not null"`
+	HealthStatus         ClusterHealthStatus     `json:"health_status" gorm:"type:varchar(32);not null;index"`
+	LastPolledAt         int64                   `json:"last_polled_at" gorm:"bigint"`
+	LastSuccessAt        int64                   `json:"last_success_at" gorm:"bigint"`
+	ConsecutiveFailures  int                     `json:"consecutive_failures"`
+	LastErrorCode        string                  `json:"last_error_code,omitempty" gorm:"type:varchar(64)"`
+	LastFailurePayload   string                  `json:"-" gorm:"type:text"`
+	NextPollAt           int64                   `json:"-" gorm:"bigint;index"`
+	PollLockedBy         string                  `json:"-" gorm:"type:varchar(128);index"`
+	PollLockedUntil      int64                   `json:"-" gorm:"bigint;index"`
+	CreatedAt            int64                   `json:"created_at" gorm:"bigint;index"`
+	UpdatedAt            int64                   `json:"updated_at" gorm:"bigint;index"`
 }
 
 type ClusterTelemetryLatest struct {
@@ -63,6 +74,15 @@ type ClusterListFilter struct {
 
 func (cluster *Cluster) BeforeCreate(_ *gorm.DB) error {
 	now := common.GetTimestamp()
+	if cluster.CredentialStatus == "" {
+		cluster.CredentialStatus = ClusterCredentialPending
+	}
+	if cluster.CredentialVersion <= 0 {
+		cluster.CredentialVersion = 1
+	}
+	if cluster.CredentialIssuedAt == 0 {
+		cluster.CredentialIssuedAt = now
+	}
 	if cluster.HealthStatus == "" {
 		cluster.HealthStatus = ClusterHealthUnknown
 	}
@@ -81,6 +101,56 @@ func CreateCluster(cluster *Cluster) error {
 		return errors.New("cluster is required")
 	}
 	return DB.Create(cluster).Error
+}
+
+func InitializeClusterCredentialStatuses() error {
+	if err := DB.Model(&Cluster{}).
+		Where("(credential_status = ? OR credential_status IS NULL) AND last_success_at > ?", "", 0).
+		Updates(map[string]any{
+			"credential_status":      ClusterCredentialActive,
+			"credential_verified_at": gorm.Expr("last_success_at"),
+		}).Error; err != nil {
+		return err
+	}
+	if err := DB.Model(&Cluster{}).
+		Where("credential_status = ? OR credential_status IS NULL", "").
+		Updates(map[string]any{
+			"credential_status": ClusterCredentialPending,
+			"health_status":     ClusterHealthUnknown,
+		}).Error; err != nil {
+		return err
+	}
+	if err := DB.Model(&Cluster{}).
+		Where("credential_version <= ? OR credential_version IS NULL", 0).
+		Update("credential_version", 1).Error; err != nil {
+		return err
+	}
+	return DB.Model(&Cluster{}).
+		Where("credential_issued_at = ? OR credential_issued_at IS NULL", 0).
+		Update("credential_issued_at", gorm.Expr("created_at")).Error
+}
+
+func RotateClusterCredential(id int64, ciphertext string) (bool, error) {
+	if id <= 0 || ciphertext == "" {
+		return false, nil
+	}
+	now := common.GetTimestamp()
+	result := DB.Model(&Cluster{}).
+		Where("id = ? AND poll_locked_until < ?", id, now).
+		Updates(map[string]any{
+			"link_secret_ciphertext": ciphertext,
+			"credential_status":      ClusterCredentialPending,
+			"credential_version":     gorm.Expr("credential_version + ?", 1),
+			"credential_issued_at":   now,
+			"credential_verified_at": int64(0),
+			"health_status":          ClusterHealthUnknown,
+			"consecutive_failures":   0,
+			"last_error_code":        "",
+			"last_failure_payload":   "",
+			"next_poll_at":           now,
+			"updated_at":             now,
+		})
+	return result.RowsAffected == 1, result.Error
 }
 
 func DeleteClusterByID(id int64) (bool, error) {
@@ -207,16 +277,18 @@ func SaveClusterPollSuccess(clusterID int64, runnerID string, health ClusterHeal
 		result := tx.Model(&Cluster{}).
 			Where("id = ? AND poll_locked_by = ?", clusterID, runnerID).
 			Updates(map[string]any{
-				"health_status":        health,
-				"last_polled_at":       now,
-				"last_success_at":      now,
-				"consecutive_failures": 0,
-				"last_error_code":      "",
-				"last_failure_payload": "",
-				"next_poll_at":         nextPollAt,
-				"poll_locked_by":       "",
-				"poll_locked_until":    int64(0),
-				"updated_at":           now,
+				"health_status":          health,
+				"credential_status":      ClusterCredentialActive,
+				"credential_verified_at": now,
+				"last_polled_at":         now,
+				"last_success_at":        now,
+				"consecutive_failures":   0,
+				"last_error_code":        "",
+				"last_failure_payload":   "",
+				"next_poll_at":           nextPollAt,
+				"poll_locked_by":         "",
+				"poll_locked_until":      int64(0),
+				"updated_at":             now,
 			})
 		if result.Error != nil {
 			return result.Error

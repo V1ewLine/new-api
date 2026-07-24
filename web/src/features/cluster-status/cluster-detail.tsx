@@ -21,6 +21,7 @@ import {
   ArrowLeft01Icon,
   Delete02Icon,
   InformationCircleIcon,
+  Key01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -60,8 +61,13 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import { getClusterDetail, refreshCluster } from './api'
+import {
+  getClusterDetail,
+  refreshCluster,
+  verifyClusterCredential,
+} from './api'
 import { DeleteClusterDialog } from './components/delete-cluster-dialog'
+import { RotateClusterCredentialDialog } from './components/rotate-cluster-credential-dialog'
 import { ClusterStatusBadge } from './components/status-badge'
 import {
   formatBytes,
@@ -119,6 +125,30 @@ function pollErrorTitle(errorCode: string, translate: TFunction): string {
   return translate('Latest telemetry poll failed')
 }
 
+function credentialSetupDescription(
+  errorCode: string | undefined,
+  translate: TFunction
+): string {
+  if (errorCode === 'AGENT_HTTP_401' || errorCode === 'AGENT_HTTP_403') {
+    return translate(
+      'The Agent rejected the Token. Confirm the environment variable and restart the Agent.'
+    )
+  }
+  if (errorCode === 'AGENT_TIMEOUT') {
+    return translate(
+      'The Agent connection timed out. Check the address, port, and network.'
+    )
+  }
+  if (errorCode === 'AGENT_UNREACHABLE') {
+    return translate(
+      'New API cannot reach the Agent. Check the address, port, firewall, and service status.'
+    )
+  }
+  return translate(
+    'Install the generated Token on the remote Agent, restart it, and test the connection.'
+  )
+}
+
 function OverviewTab(props: {
   cluster: Cluster
   telemetry?: NormalizedTelemetry
@@ -132,7 +162,10 @@ function OverviewTab(props: {
           <CardHeader>
             <CardDescription>{t('Cluster Health')}</CardDescription>
             <CardTitle>
-              <ClusterStatusBadge status={props.cluster.health_status} />
+              <ClusterStatusBadge
+                status={props.cluster.health_status}
+                credentialStatus={props.cluster.credential_status}
+              />
             </CardTitle>
           </CardHeader>
         </Card>
@@ -462,7 +495,53 @@ export function ClusterDetail(props: ClusterDetailProps) {
       )
     },
   })
+  const verifyMutation = useMutation({
+    mutationFn: async () => {
+      const response = await verifyClusterCredential(props.clusterId)
+      if (!response.success || !response.data) {
+        throw new Error(
+          response.message || t('Failed to test Agent connection')
+        )
+      }
+      return response.data
+    },
+    onSuccess: async (response) => {
+      await queryClient.invalidateQueries({ queryKey: clusterQueryKeys.all })
+      if (response.verified) {
+        toast.success(t('Agent connected successfully'))
+      } else {
+        toast.error(t('Agent connection test failed'))
+      }
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t('Failed to test Agent connection')
+      )
+    },
+  })
   const cluster = clusterQuery.data
+  const credentialPending = cluster?.credential_status === 'pending'
+  const statusActionPending = credentialPending
+    ? verifyMutation.isPending
+    : refreshMutation.isPending
+  let statusActionLabel = credentialPending
+    ? t('Test Connection')
+    : t('Refresh')
+  if (statusActionPending) {
+    statusActionLabel = credentialPending
+      ? t('Testing connection...')
+      : t('Refreshing...')
+  }
+
+  function runStatusAction() {
+    if (credentialPending) {
+      verifyMutation.mutate()
+      return
+    }
+    refreshMutation.mutate()
+  }
 
   return (
     <>
@@ -496,14 +575,17 @@ export function ClusterDetail(props: ClusterDetailProps) {
         </SectionPageLayout.Title>
         <SectionPageLayout.Actions>
           {cluster ? (
-            <ClusterStatusBadge status={cluster.health_status} />
+            <ClusterStatusBadge
+              status={cluster.health_status}
+              credentialStatus={cluster.credential_status}
+            />
           ) : null}
           <Button
             variant='outline'
-            onClick={() => refreshMutation.mutate()}
-            disabled={refreshMutation.isPending || !cluster}
+            onClick={runStatusAction}
+            disabled={statusActionPending || !cluster}
           >
-            {refreshMutation.isPending ? (
+            {statusActionPending ? (
               <Spinner data-icon='inline-start' />
             ) : (
               <HugeiconsIcon
@@ -512,8 +594,9 @@ export function ClusterDetail(props: ClusterDetailProps) {
                 data-icon='inline-start'
               />
             )}
-            {refreshMutation.isPending ? t('Refreshing...') : t('Refresh')}
+            {statusActionLabel}
           </Button>
+          {cluster ? <RotateClusterCredentialDialog cluster={cluster} /> : null}
           <Button
             variant='destructive'
             onClick={() => setDeleteDialogOpen(true)}
@@ -581,7 +664,17 @@ export function ClusterDetail(props: ClusterDetailProps) {
                   </AlertDescription>
                 </Alert>
               ) : null}
-              {cluster.last_error_code ? (
+              {cluster.credential_status === 'pending' ? (
+                <Alert>
+                  <HugeiconsIcon icon={Key01Icon} strokeWidth={2} />
+                  <AlertTitle>{t('Awaiting Agent configuration')}</AlertTitle>
+                  <AlertDescription>
+                    {credentialSetupDescription(cluster.last_error_code, t)}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {cluster.last_error_code &&
+              cluster.credential_status === 'active' ? (
                 <Alert variant='destructive'>
                   <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
                   <AlertTitle>
@@ -596,7 +689,7 @@ export function ClusterDetail(props: ClusterDetailProps) {
                   </AlertDescription>
                 </Alert>
               ) : null}
-              {!cluster.telemetry ? (
+              {!cluster.telemetry && cluster.credential_status === 'active' ? (
                 <Alert>
                   <HugeiconsIcon icon={InformationCircleIcon} strokeWidth={2} />
                   <AlertTitle>{t('Waiting for telemetry')}</AlertTitle>

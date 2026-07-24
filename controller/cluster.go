@@ -13,10 +13,9 @@ import (
 )
 
 type createClusterRequest struct {
-	ModelID          int    `json:"model_id"`
-	Name             string `json:"name"`
-	AgentAddress     string `json:"agent_address"`
-	AgentBearerToken string `json:"agent_bearer_token"`
+	ModelID      int    `json:"model_id"`
+	Name         string `json:"name"`
+	AgentAddress string `json:"agent_address"`
 }
 
 func GetClusterOverview(c *gin.Context) {
@@ -81,11 +80,48 @@ func CreateCluster(c *gin.Context) {
 		return
 	}
 	response, err := service.CreateCluster(c.Request.Context(), clusterstatus.CreateClusterInput{
-		ModelID:          request.ModelID,
-		Name:             request.Name,
-		AgentAddress:     request.AgentAddress,
-		AgentBearerToken: request.AgentBearerToken,
+		ModelID:      request.ModelID,
+		Name:         request.Name,
+		AgentAddress: request.AgentAddress,
 	})
+	if err != nil {
+		writeClusterServiceError(c, err)
+		return
+	}
+	disableSecretResponseCaching(c)
+	common.ApiSuccess(c, response)
+}
+
+func RotateClusterCredential(c *gin.Context) {
+	clusterID, ok := requireClusterID(c)
+	if !ok {
+		return
+	}
+	service, err := clusterstatus.DefaultService()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	response, err := service.RotateCredential(c.Request.Context(), clusterID)
+	if err != nil {
+		writeClusterServiceError(c, err)
+		return
+	}
+	disableSecretResponseCaching(c)
+	common.ApiSuccess(c, response)
+}
+
+func VerifyClusterCredential(c *gin.Context) {
+	clusterID, ok := requireClusterID(c)
+	if !ok {
+		return
+	}
+	service, err := clusterstatus.DefaultService()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	response, err := service.VerifyCredential(c.Request.Context(), clusterID)
 	if err != nil {
 		writeClusterServiceError(c, err)
 		return
@@ -208,6 +244,11 @@ func requireClusterID(c *gin.Context) (int64, bool) {
 	return clusterID, true
 }
 
+func disableSecretResponseCaching(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+}
+
 func writeClusterServiceError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, clusterstatus.ErrClusterNotFound):
@@ -219,7 +260,9 @@ func writeClusterServiceError(c *gin.Context, err error) {
 	case errors.Is(err, clusterstatus.ErrClusterPollInProgress):
 		common.ApiErrorMsg(c, "cluster refresh is already in progress")
 	case errors.Is(err, clusterstatus.ErrInvalidLinkSecret):
-		common.ApiErrorMsg(c, "invalid cluster Agent address or Bearer Token")
+		common.ApiErrorMsg(c, "invalid cluster Agent address")
+	case errors.Is(err, clusterstatus.ErrClusterCredentialUnavailable):
+		common.ApiErrorMsg(c, "cluster credential cannot be rotated; recreate the cluster")
 	default:
 		var pollFailure *clusterstatus.PollFailureError
 		if errors.As(err, &pollFailure) {

@@ -24,6 +24,8 @@ import type {
   ClusterOverview,
   ClusterOverviewParams,
   CreateClusterPayload,
+  CredentialIssueResponse,
+  CredentialVerificationResponse,
   ModelDetail,
   ModelOption,
   NormalizedTelemetry,
@@ -45,7 +47,7 @@ export async function getClusterModelOptions() {
 }
 
 export async function createCluster(payload: CreateClusterPayload) {
-  const response = await api.post<ApiResponse<Cluster>>(
+  const response = await api.post<ApiResponse<CredentialIssueResponse>>(
     '/api/clusters/',
     payload
   )
@@ -83,6 +85,20 @@ export async function getLatestClusterTelemetry(clusterId: number) {
 export async function refreshCluster(clusterId: number) {
   const response = await api.post<ApiResponse<Cluster>>(
     `/api/clusters/${clusterId}/refresh`
+  )
+  return response.data
+}
+
+export async function rotateClusterCredential(clusterId: number) {
+  const response = await api.post<ApiResponse<CredentialIssueResponse>>(
+    `/api/clusters/${clusterId}/credential/rotate`
+  )
+  return response.data
+}
+
+export async function verifyClusterCredential(clusterId: number) {
+  const response = await api.post<ApiResponse<CredentialVerificationResponse>>(
+    `/api/clusters/${clusterId}/credential/verify`
   )
   return response.data
 }

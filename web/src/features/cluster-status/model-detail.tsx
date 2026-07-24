@@ -246,6 +246,7 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
                             <TableCell>
                               <ClusterStatusBadge
                                 status={cluster.health_status}
+                                credentialStatus={cluster.credential_status}
                               />
                             </TableCell>
                             <TableCell>

@@ -18,6 +18,8 @@ import (
 const (
 	temporaryLinkSecretPrefix = "sgta1."
 	encryptedSecretPrefix     = "cluster-secret:v1:"
+	agentBearerTokenPrefix    = "napi_agent_"
+	agentBearerTokenBytes     = 32
 	maxLinkSecretLength       = 16 * 1024
 	maxAgentBaseURLLength     = 2 * 1024
 	maxAgentBearerTokenLength = 8 * 1024
@@ -33,6 +35,14 @@ type temporaryLinkPayload struct {
 // complete sgta1 value internally. A future Agent enrollment-key resolver can
 // replace this implementation without changing controllers or stored clusters.
 type TemporaryLinkResolver struct{}
+
+func GenerateAgentBearerToken() (string, error) {
+	randomBytes := make([]byte, agentBearerTokenBytes)
+	if _, err := io.ReadFull(rand.Reader, randomBytes); err != nil {
+		return "", err
+	}
+	return agentBearerTokenPrefix + base64.RawURLEncoding.EncodeToString(randomBytes), nil
+}
 
 func BuildTemporaryLinkSecret(agentAddress string, bearerToken string) (string, error) {
 	agentAddress = strings.TrimSpace(agentAddress)

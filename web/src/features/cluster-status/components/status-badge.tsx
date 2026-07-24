@@ -20,25 +20,33 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 
-import type { ClusterHealthStatus } from '../types'
+import { clusterDisplayStatus } from '../lib/credential'
+import type { ClusterCredentialStatus, ClusterHealthStatus } from '../types'
 
 type ClusterStatusBadgeProps = {
   status: ClusterHealthStatus
+  credentialStatus?: ClusterCredentialStatus
 }
 
 export function ClusterStatusBadge(props: ClusterStatusBadgeProps) {
   const { t } = useTranslation()
+  const status = props.credentialStatus
+    ? clusterDisplayStatus(props.status, props.credentialStatus)
+    : props.status
 
-  if (props.status === 'online') {
+  if (status === 'pending') {
+    return <Badge variant='outline'>{t('Awaiting configuration')}</Badge>
+  }
+  if (status === 'online') {
     return <Badge variant='default'>{t('Online')}</Badge>
   }
-  if (props.status === 'partial') {
+  if (status === 'partial') {
     return <Badge variant='outline'>{t('Partially abnormal')}</Badge>
   }
-  if (props.status === 'abnormal') {
+  if (status === 'abnormal') {
     return <Badge variant='destructive'>{t('Abnormal')}</Badge>
   }
-  if (props.status === 'offline') {
+  if (status === 'offline') {
     return <Badge variant='destructive'>{t('Offline')}</Badge>
   }
   return <Badge variant='secondary'>{t('Unknown')}</Badge>

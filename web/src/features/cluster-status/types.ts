@@ -23,6 +23,8 @@ export type ClusterHealthStatus =
   | 'abnormal'
   | 'offline'
 
+export type ClusterCredentialStatus = 'pending' | 'active'
+
 export type ApiResponse<T> = {
   success: boolean
   message?: string
@@ -115,6 +117,10 @@ export type Cluster = {
   name: string
   enabled: boolean
   health_status: ClusterHealthStatus
+  credential_status: ClusterCredentialStatus
+  credential_version: number
+  credential_issued_at: number
+  credential_verified_at: number
   has_link_secret: boolean
   last_polled_at: number
   last_success_at: number
@@ -189,5 +195,15 @@ export type CreateClusterPayload = {
   model_id: number
   name: string
   agent_address: string
-  agent_bearer_token: string
+}
+
+export type CredentialIssueResponse = {
+  cluster: Cluster
+  bootstrap_token: string
+}
+
+export type CredentialVerificationResponse = {
+  verified: boolean
+  error_code?: string
+  cluster: Cluster
 }

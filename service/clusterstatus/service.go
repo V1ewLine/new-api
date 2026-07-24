@@ -46,10 +46,9 @@ func NewService(
 	}
 }
 
-func (service *Service) CreateCluster(ctx context.Context, input CreateClusterInput) (*ClusterResponse, error) {
+func (service *Service) CreateCluster(ctx context.Context, input CreateClusterInput) (*CredentialIssueResponse, error) {
 	input.Name = strings.TrimSpace(input.Name)
 	input.AgentAddress = strings.TrimSpace(input.AgentAddress)
-	input.AgentBearerToken = strings.TrimSpace(input.AgentBearerToken)
 	if input.ModelID <= 0 {
 		return nil, ErrClusterModelNotFound
 	}
@@ -69,7 +68,11 @@ func (service *Service) CreateCluster(ctx context.Context, input CreateClusterIn
 		return nil, err
 	}
 
-	linkSecret, err := BuildTemporaryLinkSecret(input.AgentAddress, input.AgentBearerToken)
+	bearerToken, err := GenerateAgentBearerToken()
+	if err != nil {
+		return nil, err
+	}
+	linkSecret, err := BuildTemporaryLinkSecret(input.AgentAddress, bearerToken)
 	if err != nil {
 		return nil, ErrInvalidLinkSecret
 	}
@@ -98,7 +101,97 @@ func (service *Service) CreateCluster(ctx context.Context, input CreateClusterIn
 	if err := model.CreateCluster(cluster); err != nil {
 		return nil, err
 	}
-	return service.clusterResponse(cluster, &linkedModel, nil), nil
+	return &CredentialIssueResponse{
+		Cluster:        *service.clusterResponse(cluster, &linkedModel, nil),
+		BootstrapToken: bearerToken,
+	}, nil
+}
+
+func (service *Service) RotateCredential(ctx context.Context, clusterID int64) (*CredentialIssueResponse, error) {
+	cluster, err := model.GetClusterByID(clusterID)
+	if err != nil {
+		return nil, err
+	}
+	if cluster == nil {
+		return nil, ErrClusterNotFound
+	}
+
+	linkSecret, err := service.protector.Unprotect(cluster.LinkSecretCiphertext)
+	if err != nil {
+		return nil, ErrClusterCredentialUnavailable
+	}
+	connection, err := service.resolver.Resolve(ctx, linkSecret)
+	if err != nil {
+		return nil, ErrClusterCredentialUnavailable
+	}
+	if service.validateAgentURL != nil {
+		if err := service.validateAgentURL(connection.BaseURL); err != nil {
+			return nil, errors.New("cluster Agent address is blocked by the outbound request policy")
+		}
+	}
+
+	bearerToken, err := GenerateAgentBearerToken()
+	if err != nil {
+		return nil, err
+	}
+	rotatedLinkSecret, err := BuildTemporaryLinkSecret(connection.BaseURL, bearerToken)
+	if err != nil {
+		return nil, ErrClusterCredentialUnavailable
+	}
+	ciphertext, err := service.protector.Protect(rotatedLinkSecret)
+	if err != nil {
+		return nil, err
+	}
+	rotated, err := model.RotateClusterCredential(clusterID, ciphertext)
+	if err != nil {
+		return nil, err
+	}
+	if !rotated {
+		if existing, getErr := model.GetClusterByID(clusterID); getErr != nil {
+			return nil, getErr
+		} else if existing == nil {
+			return nil, ErrClusterNotFound
+		}
+		return nil, ErrClusterPollInProgress
+	}
+
+	response, err := service.GetCluster(clusterID)
+	if err != nil {
+		return nil, err
+	}
+	return &CredentialIssueResponse{
+		Cluster:        *response,
+		BootstrapToken: bearerToken,
+	}, nil
+}
+
+func (service *Service) VerifyCredential(ctx context.Context, clusterID int64) (*CredentialVerificationResponse, error) {
+	runnerID := common.NodeName + "-credential-" + common.GetRandomString(8)
+	err := service.PollCluster(ctx, clusterID, runnerID, true)
+	if err == nil {
+		cluster, getErr := service.GetCluster(clusterID)
+		if getErr != nil {
+			return nil, getErr
+		}
+		return &CredentialVerificationResponse{
+			Verified: true,
+			Cluster:  *cluster,
+		}, nil
+	}
+
+	var pollFailure *PollFailureError
+	if !errors.As(err, &pollFailure) {
+		return nil, err
+	}
+	cluster, getErr := service.GetCluster(clusterID)
+	if getErr != nil {
+		return nil, getErr
+	}
+	return &CredentialVerificationResponse{
+		Verified:  false,
+		ErrorCode: pollFailure.Code,
+		Cluster:   *cluster,
+	}, nil
 }
 
 func (service *Service) ListModelOptions() ([]ModelOption, error) {
@@ -155,11 +248,13 @@ func (service *Service) GetOverview(search string, modelID int, health model.Clu
 	var gpuUtilizationCountByModel = make(map[int]int)
 	for _, cluster := range clusters {
 		response.Overview.TotalClusters++
-		switch cluster.HealthStatus {
-		case model.ClusterHealthOnline:
-			response.Overview.OnlineClusters++
-		case model.ClusterHealthPartial, model.ClusterHealthAbnormal, model.ClusterHealthOffline:
-			response.Overview.AbnormalClusters++
+		if cluster.CredentialStatus == model.ClusterCredentialActive {
+			switch cluster.HealthStatus {
+			case model.ClusterHealthOnline:
+				response.Overview.OnlineClusters++
+			case model.ClusterHealthPartial, model.ClusterHealthAbnormal, model.ClusterHealthOffline:
+				response.Overview.AbnormalClusters++
+			}
 		}
 
 		linkedModel := modelMap[cluster.ModelID]
@@ -186,15 +281,17 @@ func (service *Service) GetOverview(search string, modelID int, health model.Clu
 			summaryByModel[cluster.ModelID] = modelSummary
 		}
 		modelSummary.ClusterCount++
-		if cluster.HealthStatus == model.ClusterHealthOnline {
-			modelSummary.OnlineCount++
+		if cluster.CredentialStatus == model.ClusterCredentialActive {
+			if cluster.HealthStatus == model.ClusterHealthOnline {
+				modelSummary.OnlineCount++
+			}
+			if cluster.HealthStatus == model.ClusterHealthPartial ||
+				cluster.HealthStatus == model.ClusterHealthAbnormal ||
+				cluster.HealthStatus == model.ClusterHealthOffline {
+				modelSummary.AbnormalCount++
+			}
+			modelSummary.HealthStatus = mergeHealthStatus(modelSummary.HealthStatus, cluster.HealthStatus)
 		}
-		if cluster.HealthStatus == model.ClusterHealthPartial ||
-			cluster.HealthStatus == model.ClusterHealthAbnormal ||
-			cluster.HealthStatus == model.ClusterHealthOffline {
-			modelSummary.AbnormalCount++
-		}
-		modelSummary.HealthStatus = mergeHealthStatus(modelSummary.HealthStatus, cluster.HealthStatus)
 
 		normalized := decodeLatestTelemetry(telemetryMap[cluster.ID])
 		if normalized != nil {
@@ -219,9 +316,10 @@ func (service *Service) GetOverview(search string, modelID int, health model.Clu
 			}
 		}
 
-		if cluster.HealthStatus == model.ClusterHealthAbnormal ||
-			cluster.HealthStatus == model.ClusterHealthOffline ||
-			cluster.HealthStatus == model.ClusterHealthPartial {
+		if cluster.CredentialStatus == model.ClusterCredentialActive &&
+			(cluster.HealthStatus == model.ClusterHealthAbnormal ||
+				cluster.HealthStatus == model.ClusterHealthOffline ||
+				cluster.HealthStatus == model.ClusterHealthPartial) {
 			response.Alerts = append(response.Alerts, ClusterAlert{
 				ClusterID:    cluster.ID,
 				ClusterName:  cluster.Name,
@@ -319,15 +417,17 @@ func (service *Service) GetModelDetail(modelID int) (*ModelDetailResponse, error
 		normalized := decodeLatestTelemetry(telemetryMap[cluster.ID])
 		clusterResponses = append(clusterResponses, *service.clusterResponse(cluster, &linkedModel, normalized))
 		summary.ClusterCount++
-		if cluster.HealthStatus == model.ClusterHealthOnline {
-			summary.OnlineCount++
+		if cluster.CredentialStatus == model.ClusterCredentialActive {
+			if cluster.HealthStatus == model.ClusterHealthOnline {
+				summary.OnlineCount++
+			}
+			if cluster.HealthStatus == model.ClusterHealthPartial ||
+				cluster.HealthStatus == model.ClusterHealthAbnormal ||
+				cluster.HealthStatus == model.ClusterHealthOffline {
+				summary.AbnormalCount++
+			}
+			summary.HealthStatus = mergeHealthStatus(summary.HealthStatus, cluster.HealthStatus)
 		}
-		if cluster.HealthStatus == model.ClusterHealthPartial ||
-			cluster.HealthStatus == model.ClusterHealthAbnormal ||
-			cluster.HealthStatus == model.ClusterHealthOffline {
-			summary.AbnormalCount++
-		}
-		summary.HealthStatus = mergeHealthStatus(summary.HealthStatus, cluster.HealthStatus)
 		if normalized == nil {
 			continue
 		}
@@ -499,10 +599,14 @@ func (service *Service) finishPollFailureWithDiagnostic(cluster *model.Cluster, 
 	nextPollAt := common.GetTimestamp() + pollDelaySeconds(
 		service.jittered(backoff, cluster.ID),
 	)
+	health := service.healthEvaluator.FailureStatus(failures)
+	if cluster.CredentialStatus == model.ClusterCredentialPending {
+		health = model.ClusterHealthUnknown
+	}
 	if err := model.SaveClusterPollFailure(
 		cluster.ID,
 		runnerID,
-		service.healthEvaluator.FailureStatus(failures),
+		health,
 		errorCode,
 		diagnosticPayload,
 		nextPollAt,
@@ -540,21 +644,25 @@ func (service *Service) clusterResponse(cluster *model.Cluster, linkedModel *mod
 		modelAvailable = linkedModel.Status == 1 && !linkedModel.DeletedAt.Valid
 	}
 	return &ClusterResponse{
-		ID:                  cluster.ID,
-		ModelID:             cluster.ModelID,
-		ModelName:           modelName,
-		ModelAvailable:      modelAvailable,
-		Name:                cluster.Name,
-		Enabled:             cluster.Enabled,
-		HealthStatus:        cluster.HealthStatus,
-		HasLinkSecret:       cluster.LinkSecretCiphertext != "",
-		LastPolledAt:        cluster.LastPolledAt,
-		LastSuccessAt:       cluster.LastSuccessAt,
-		ConsecutiveFailures: cluster.ConsecutiveFailures,
-		LastErrorCode:       cluster.LastErrorCode,
-		CreatedAt:           cluster.CreatedAt,
-		UpdatedAt:           cluster.UpdatedAt,
-		Telemetry:           telemetry,
+		ID:                   cluster.ID,
+		ModelID:              cluster.ModelID,
+		ModelName:            modelName,
+		ModelAvailable:       modelAvailable,
+		Name:                 cluster.Name,
+		Enabled:              cluster.Enabled,
+		HealthStatus:         cluster.HealthStatus,
+		CredentialStatus:     cluster.CredentialStatus,
+		CredentialVersion:    cluster.CredentialVersion,
+		CredentialIssuedAt:   cluster.CredentialIssuedAt,
+		CredentialVerifiedAt: cluster.CredentialVerifiedAt,
+		HasLinkSecret:        cluster.LinkSecretCiphertext != "",
+		LastPolledAt:         cluster.LastPolledAt,
+		LastSuccessAt:        cluster.LastSuccessAt,
+		ConsecutiveFailures:  cluster.ConsecutiveFailures,
+		LastErrorCode:        cluster.LastErrorCode,
+		CreatedAt:            cluster.CreatedAt,
+		UpdatedAt:            cluster.UpdatedAt,
+		Telemetry:            telemetry,
 	}
 }
 

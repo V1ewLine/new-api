@@ -41,6 +41,19 @@ func TestBuildTemporaryLinkSecretAcceptsIPAndPortWithoutScheme(t *testing.T) {
 	assert.Equal(t, "agent-token", connection.BearerToken)
 }
 
+func TestGenerateAgentBearerTokenUsesOpaqueHighEntropyFormat(t *testing.T) {
+	token, err := GenerateAgentBearerToken()
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(token, agentBearerTokenPrefix))
+	decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(token, agentBearerTokenPrefix))
+	require.NoError(t, err)
+	assert.Len(t, decoded, agentBearerTokenBytes)
+
+	secondToken, err := GenerateAgentBearerToken()
+	require.NoError(t, err)
+	assert.NotEqual(t, token, secondToken)
+}
+
 func TestBuildTemporaryLinkSecretRejectsInvalidConnectionFields(t *testing.T) {
 	testCases := map[string]struct {
 		address string
