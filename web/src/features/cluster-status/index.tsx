@@ -40,6 +40,7 @@ import { getClusterModelOptions, getClusterOverview } from './api'
 import { AddClusterDialog } from './components/add-cluster-dialog'
 import { OverviewContent } from './components/overview-content'
 import { OverviewToolbar } from './components/overview-toolbar'
+import { useClusterRefreshInterval } from './hooks/use-cluster-refresh-interval'
 import { clusterQueryKeys } from './query-keys'
 import type { ClusterHealthStatus } from './types'
 
@@ -85,6 +86,7 @@ export function ClusterStatus() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const refreshInterval = useClusterRefreshInterval()
   const params = {
     search: debouncedSearch || undefined,
     model_id: modelId || undefined,
@@ -101,7 +103,7 @@ export function ClusterStatus() {
       }
       return response.data
     },
-    refetchInterval: 5000,
+    refetchInterval: refreshInterval,
   })
   const modelOptionsQuery = useQuery({
     queryKey: clusterQueryKeys.modelOptions(),

@@ -18,6 +18,12 @@ type createClusterRequest struct {
 	AgentAddress string `json:"agent_address"`
 }
 
+func GetClusterSettings(c *gin.Context) {
+	common.ApiSuccess(c, gin.H{
+		"refresh_interval_seconds": common.GetClusterStatusRefreshIntervalSeconds(),
+	})
+}
+
 func GetClusterOverview(c *gin.Context) {
 	service, err := clusterstatus.DefaultService()
 	if err != nil {

@@ -30,6 +30,7 @@ func AllOption() ([]*Option, error) {
 func InitOptionMap() {
 	common.OptionMapRWMutex.Lock()
 	common.OptionMap = make(map[string]string)
+	common.ClusterStatusRefreshIntervalSeconds = common.DefaultClusterStatusRefreshInterval()
 
 	// 添加原有的系统配置
 	common.OptionMap["FileUploadPermission"] = strconv.Itoa(common.FileUploadPermission)
@@ -157,6 +158,7 @@ func InitOptionMap() {
 	common.OptionMap["RetryTimes"] = strconv.Itoa(common.RetryTimes)
 	common.OptionMap["DataExportInterval"] = strconv.Itoa(common.DataExportInterval)
 	common.OptionMap["DataExportDefaultTime"] = common.DataExportDefaultTime
+	common.OptionMap["ClusterStatusRefreshIntervalSeconds"] = strconv.Itoa(common.ClusterStatusRefreshIntervalSeconds)
 	common.OptionMap["DefaultCollapseSidebar"] = strconv.FormatBool(common.DefaultCollapseSidebar)
 	common.OptionMap["MjNotifyEnabled"] = strconv.FormatBool(setting.MjNotifyEnabled)
 	common.OptionMap["MjAccountFilterEnabled"] = strconv.FormatBool(setting.MjAccountFilterEnabled)
@@ -205,6 +207,11 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == "ClusterStatusRefreshIntervalSeconds" {
+		if _, err := common.ParseClusterStatusRefreshIntervalSeconds(value); err != nil {
+			return err
+		}
+	}
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -228,6 +235,11 @@ func UpdateOption(key string, value string) error {
 func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
+	}
+	if value, ok := values["ClusterStatusRefreshIntervalSeconds"]; ok {
+		if _, err := common.ParseClusterStatusRefreshIntervalSeconds(value); err != nil {
+			return err
+		}
 	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
@@ -259,6 +271,13 @@ func updateOptionMap(key string, value string) (err error) {
 		delete(common.OptionMap, key)
 		common.OptionMapRWMutex.Unlock()
 		return nil
+	}
+	clusterStatusRefreshInterval := 0
+	if key == "ClusterStatusRefreshIntervalSeconds" {
+		clusterStatusRefreshInterval, err = common.ParseClusterStatusRefreshIntervalSeconds(value)
+		if err != nil {
+			return err
+		}
 	}
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
@@ -530,6 +549,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.DataExportInterval, _ = strconv.Atoi(value)
 	case "DataExportDefaultTime":
 		common.DataExportDefaultTime = value
+	case "ClusterStatusRefreshIntervalSeconds":
+		common.ClusterStatusRefreshIntervalSeconds = clusterStatusRefreshInterval
 	case "ModelRatio":
 		err = ratio_setting.UpdateModelRatioByJSONString(value)
 	case "GroupRatio":

@@ -16,15 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export const clusterQueryKeys = {
-  all: ['cluster-status'] as const,
-  settings: () => [...clusterQueryKeys.all, 'settings'] as const,
-  overviews: () => [...clusterQueryKeys.all, 'overview'] as const,
-  overview: (params: object) =>
-    [...clusterQueryKeys.overviews(), params] as const,
-  modelOptions: () => [...clusterQueryKeys.all, 'model-options'] as const,
-  models: () => [...clusterQueryKeys.all, 'model'] as const,
-  model: (modelId: number) => [...clusterQueryKeys.models(), modelId] as const,
-  cluster: (clusterId: number) =>
-    [...clusterQueryKeys.all, 'cluster', clusterId] as const,
+export const DEFAULT_CLUSTER_STATUS_REFRESH_INTERVAL_MS = 5000
+
+const MIN_CLUSTER_STATUS_REFRESH_INTERVAL_SECONDS = 1
+const MAX_CLUSTER_STATUS_REFRESH_INTERVAL_SECONDS = 300
+
+export function clusterStatusRefreshIntervalMs(seconds: unknown): number {
+  if (
+    typeof seconds !== 'number' ||
+    !Number.isInteger(seconds) ||
+    seconds < MIN_CLUSTER_STATUS_REFRESH_INTERVAL_SECONDS ||
+    seconds > MAX_CLUSTER_STATUS_REFRESH_INTERVAL_SECONDS
+  ) {
+    return DEFAULT_CLUSTER_STATUS_REFRESH_INTERVAL_MS
+  }
+
+  return seconds * 1000
 }

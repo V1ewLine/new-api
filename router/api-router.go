@@ -357,6 +357,7 @@ func SetApiRouter(router *gin.Engine) {
 		clusterRoute := apiRouter.Group("/clusters")
 		clusterRoute.Use(middleware.AdminAuth())
 		{
+			clusterRoute.GET("/settings", controller.GetClusterSettings)
 			clusterRoute.GET("/overview", controller.GetClusterOverview)
 			clusterRoute.GET("/model-options", controller.GetClusterModelOptions)
 			clusterRoute.POST("/", controller.CreateCluster)

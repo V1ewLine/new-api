@@ -31,6 +31,10 @@ export type ApiResponse<T> = {
   data?: T
 }
 
+export type ClusterStatusSettings = {
+  refresh_interval_seconds: number
+}
+
 export type ModelOption = {
   id: number
   name: string

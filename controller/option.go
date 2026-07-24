@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service/clusterstatus"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -218,6 +219,14 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "ClusterStatusRefreshIntervalSeconds":
+		if _, err = common.ParseClusterStatusRefreshIntervalSeconds(option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	case "theme.frontend":
 		if option.Value != "default" {
 			c.JSON(http.StatusOK, gin.H{
@@ -339,6 +348,9 @@ func UpdateOption(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if option.Key == "ClusterStatusRefreshIntervalSeconds" {
+		clusterstatus.RescheduleEnabledClusters()
 	}
 	// 出于安全考虑只记录被修改的配置项名称，不记录配置值（可能含密钥等敏感信息）。
 	recordManageAudit(c, "option.update", map[string]interface{}{

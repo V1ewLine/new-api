@@ -32,10 +32,7 @@ type Poller struct {
 }
 
 func DefaultPollConfig() PollConfig {
-	intervalSeconds := common.GetEnvOrDefault("CLUSTER_TELEMETRY_POLL_INTERVAL_SECONDS", 5)
-	if intervalSeconds < 1 {
-		intervalSeconds = 1
-	}
+	intervalSeconds := common.GetClusterStatusRefreshIntervalSeconds()
 	timeoutSeconds := common.GetEnvOrDefault("CLUSTER_TELEMETRY_REQUEST_TIMEOUT_SECONDS", 3)
 	if timeoutSeconds < 1 {
 		timeoutSeconds = 1
@@ -61,7 +58,10 @@ func DefaultPollConfig() PollConfig {
 		maxBackoffSeconds = intervalSeconds
 	}
 	return PollConfig{
-		Interval:         time.Duration(intervalSeconds) * time.Second,
+		Interval: time.Duration(intervalSeconds) * time.Second,
+		IntervalProvider: func() time.Duration {
+			return time.Duration(common.GetClusterStatusRefreshIntervalSeconds()) * time.Second
+		},
 		RequestTimeout:   time.Duration(timeoutSeconds) * time.Second,
 		MaxConcurrency:   maxConcurrency,
 		FailureThreshold: failureThreshold,
@@ -145,7 +145,7 @@ func (poller *Poller) Start() {
 	poller.wg.Add(1)
 	go func() {
 		defer poller.wg.Done()
-		tickInterval := poller.config.Interval / 2
+		tickInterval := poller.config.currentInterval() / 2
 		if tickInterval > time.Second {
 			tickInterval = time.Second
 		}
@@ -168,10 +168,27 @@ func (poller *Poller) Start() {
 	}()
 	logger.LogInfo(context.Background(), fmt.Sprintf(
 		"cluster telemetry poller started: interval=%s timeout=%s concurrency=%d",
-		poller.config.Interval,
+		poller.config.currentInterval(),
 		poller.config.RequestTimeout,
 		poller.config.MaxConcurrency,
 	))
+}
+
+func RescheduleEnabledClusters() {
+	if err := model.ScheduleEnabledClustersForPoll(common.GetTimestamp()); err != nil {
+		common.SysError("failed to reschedule cluster telemetry: " + err.Error())
+		return
+	}
+	defaultServiceMu.RLock()
+	poller := defaultPoller
+	defaultServiceMu.RUnlock()
+	if poller == nil {
+		return
+	}
+	select {
+	case poller.wakeup <- struct{}{}:
+	default:
+	}
 }
 
 func (poller *Poller) Stop(ctx context.Context) error {

@@ -20,6 +20,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 
+import { clusterQueryKeys } from '@/features/cluster-status/query-keys'
+
 import { updateSystemOption } from '../api'
 import type { UpdateOptionRequest } from '../types'
 
@@ -47,6 +49,12 @@ export function useUpdateOption() {
       if (data.success) {
         // Always refresh system-options
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
+
+        if (variables.key === 'ClusterStatusRefreshIntervalSeconds') {
+          queryClient.invalidateQueries({
+            queryKey: clusterQueryKeys.settings(),
+          })
+        }
 
         // If updating frontend-display-related config, also refresh status
         if (STATUS_RELATED_KEYS.includes(variables.key)) {

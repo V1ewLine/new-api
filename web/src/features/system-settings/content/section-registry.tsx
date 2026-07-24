@@ -46,6 +46,8 @@ const CONTENT_SECTIONS = [
         defaultValues={{
           DataExportEnabled: settings.DataExportEnabled,
           DataExportInterval: settings.DataExportInterval,
+          ClusterStatusRefreshIntervalSeconds:
+            settings.ClusterStatusRefreshIntervalSeconds,
           DataExportDefaultTime: validateDataExportDefaultTime(
             settings.DataExportDefaultTime
           ),

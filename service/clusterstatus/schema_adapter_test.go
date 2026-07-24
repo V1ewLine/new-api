@@ -109,6 +109,40 @@ func TestSchemaV1AdapterNormalizesDynamicGPUCounts(t *testing.T) {
 	}
 }
 
+func TestSchemaV1AdapterUsesCurrentLoadMetricsWhenCumulativeMetricsAreAbsent(t *testing.T) {
+	var payload map[string]any
+	require.NoError(t, common.Unmarshal(telemetryFixture(t, "ok", "model-a", 1), &payload))
+	engine, ok := payload["engine"].(map[string]any)
+	require.True(t, ok)
+	engine["loads"] = []map[string]any{
+		{
+			"dp_rank":              0,
+			"num_running_reqs":     2,
+			"num_waiting_reqs":     1,
+			"num_total_tokens":     120,
+			"num_used_tokens":      100,
+			"max_total_num_tokens": 753932,
+		},
+		{
+			"dp_rank":          1,
+			"num_running_reqs": 3,
+			"num_waiting_reqs": 4,
+			"num_total_tokens": 80,
+			"num_used_tokens":  60,
+		},
+	}
+	raw, err := common.Marshal(payload)
+	require.NoError(t, err)
+
+	telemetry, err := (SchemaV1Adapter{}).Adapt(raw, "model-a")
+
+	require.NoError(t, err)
+	require.NotNil(t, telemetry.Metrics.Requests)
+	require.NotNil(t, telemetry.Metrics.Tokens)
+	assert.Equal(t, float64(10), *telemetry.Metrics.Requests)
+	assert.Equal(t, float64(200), *telemetry.Metrics.Tokens)
+}
+
 func TestSchemaV1AdapterMarksModelMismatchWithoutChangingIdentity(t *testing.T) {
 	telemetry, err := (SchemaV1Adapter{}).Adapt(
 		telemetryFixture(t, "ok", "agent-model", 1),

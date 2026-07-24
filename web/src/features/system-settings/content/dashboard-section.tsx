@@ -56,6 +56,7 @@ const dataDashboardSchema = z.object({
   DataExportEnabled: z.boolean(),
   DataExportInterval: z.number().int().min(1).max(1440),
   DataExportDefaultTime: z.enum(['hour', 'day', 'week']),
+  ClusterStatusRefreshIntervalSeconds: z.number().int().min(1).max(300),
 })
 
 type DataDashboardFormValues = z.infer<typeof dataDashboardSchema>
@@ -154,12 +155,10 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                 <FormItem>
                   <FormLabel>{t('Default time granularity')}</FormLabel>
                   <Select
-                    items={[
-                      ...granularityOptions.map((option) => ({
-                        value: option.value,
-                        label: t(option.label),
-                      })),
-                    ]}
+                    items={granularityOptions.map((option) => ({
+                      value: option.value,
+                      label: t(option.label),
+                    }))}
                     onValueChange={field.onChange}
                     value={field.value}
                     disabled={!isEnabled}
@@ -182,6 +181,33 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                   <FormDescription>
                     {t(
                       'UI granularity only &mdash; data is still aggregated hourly'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='ClusterStatusRefreshIntervalSeconds'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    {t('Cluster status refresh interval (seconds)')}
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      max={300}
+                      step={1}
+                      {...safeNumberFieldProps(field)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Controls automatic refresh on cluster status pages. Manual refresh remains available.'
                     )}
                   </FormDescription>
                   <FormMessage />

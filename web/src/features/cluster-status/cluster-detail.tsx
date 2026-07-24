@@ -69,6 +69,7 @@ import {
 import { DeleteClusterDialog } from './components/delete-cluster-dialog'
 import { RotateClusterCredentialDialog } from './components/rotate-cluster-credential-dialog'
 import { ClusterStatusBadge } from './components/status-badge'
+import { useClusterRefreshInterval } from './hooks/use-cluster-refresh-interval'
 import {
   formatBytes,
   formatCompactNumber,
@@ -466,6 +467,7 @@ export function ClusterDetail(props: ClusterDetailProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const refreshInterval = useClusterRefreshInterval()
   const clusterQuery = useQuery({
     queryKey: clusterQueryKeys.cluster(props.clusterId),
     queryFn: async () => {
@@ -475,7 +477,7 @@ export function ClusterDetail(props: ClusterDetailProps) {
       }
       return response.data
     },
-    refetchInterval: 5000,
+    refetchInterval: refreshInterval,
   })
   const refreshMutation = useMutation({
     mutationFn: async () => {

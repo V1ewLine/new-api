@@ -24,6 +24,7 @@ func TestClusterMutationRoutesRequireAdminAuthentication(t *testing.T) {
 		path   string
 		route  string
 	}{
+		{method: http.MethodGet, path: "/api/clusters/settings", route: "/api/clusters/settings"},
 		{method: http.MethodDelete, path: "/api/clusters/1", route: "/api/clusters/:clusterId"},
 		{method: http.MethodPost, path: "/api/clusters/1/credential/rotate", route: "/api/clusters/:clusterId/credential/rotate"},
 		{method: http.MethodPost, path: "/api/clusters/1/credential/verify", route: "/api/clusters/:clusterId/credential/verify"},

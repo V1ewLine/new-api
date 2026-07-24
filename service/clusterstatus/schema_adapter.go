@@ -150,6 +150,26 @@ func (SchemaV1Adapter) Adapt(raw []byte, expectedModelName string) (*NormalizedT
 		"total_requests", "request_count", "requests")
 	telemetry.Metrics.Tokens = sumLoadMetric(envelope.Engine.Loads,
 		"total_tokens", "token_count", "tokens")
+	if telemetry.Metrics.Requests == nil {
+		runningRequests := sumLoadMetric(envelope.Engine.Loads,
+			"num_running_reqs", "running_requests", "num_running_requests")
+		waitingRequests := sumLoadMetric(envelope.Engine.Loads,
+			"num_waiting_reqs", "waiting_requests", "num_waiting_requests")
+		if runningRequests != nil || waitingRequests != nil {
+			var currentRequests float64
+			if runningRequests != nil {
+				currentRequests += *runningRequests
+			}
+			if waitingRequests != nil {
+				currentRequests += *waitingRequests
+			}
+			telemetry.Metrics.Requests = &currentRequests
+		}
+	}
+	if telemetry.Metrics.Tokens == nil {
+		telemetry.Metrics.Tokens = sumLoadMetric(envelope.Engine.Loads,
+			"num_total_tokens", "num_used_tokens", "token_usage", "used_tokens")
+	}
 
 	if envelope.Machine.Nearest != nil {
 		telemetry.Machine.SampledAt = envelope.Machine.Nearest.SampledAt

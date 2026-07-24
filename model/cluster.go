@@ -227,6 +227,12 @@ func ListDueClusterIDs(now int64, limit int) ([]int64, error) {
 	return ids, err
 }
 
+func ScheduleEnabledClustersForPoll(now int64) error {
+	return DB.Model(&Cluster{}).
+		Where("enabled = ?", true).
+		UpdateColumn("next_poll_at", now).Error
+}
+
 func ClaimClusterPoll(id int64, runnerID string, now int64, lockUntil int64, force bool) (bool, error) {
 	query := DB.Model(&Cluster{}).
 		Where("id = ? AND enabled = ? AND poll_locked_until < ?", id, true, now)

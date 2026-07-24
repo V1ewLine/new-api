@@ -58,6 +58,7 @@ import { getClusterModelDetail } from './api'
 import { DeleteClusterDialog } from './components/delete-cluster-dialog'
 import { ModelAvatar } from './components/model-avatar'
 import { ClusterStatusBadge } from './components/status-badge'
+import { useClusterRefreshInterval } from './hooks/use-cluster-refresh-interval'
 import { formatCompactNumber, formatTimestamp, formatWatts } from './lib/format'
 import { clusterQueryKeys } from './query-keys'
 import type { Cluster } from './types'
@@ -87,6 +88,7 @@ function MetricCard(props: {
 export function ClusterModelDetail(props: ClusterModelDetailProps) {
   const { t } = useTranslation()
   const [deleteTarget, setDeleteTarget] = useState<Cluster | null>(null)
+  const refreshInterval = useClusterRefreshInterval()
   const detailQuery = useQuery({
     queryKey: clusterQueryKeys.model(props.modelId),
     queryFn: async () => {
@@ -96,7 +98,7 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
       }
       return response.data
     },
-    refetchInterval: 5000,
+    refetchInterval: refreshInterval,
   })
 
   const detail = detailQuery.data

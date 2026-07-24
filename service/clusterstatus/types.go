@@ -67,12 +67,22 @@ type ClusterHealthEvaluator interface {
 
 type PollConfig struct {
 	Interval         time.Duration
+	IntervalProvider func() time.Duration
 	RequestTimeout   time.Duration
 	MaxConcurrency   int
 	FailureThreshold int
 	MaxBodyBytes     int64
 	LeaseTTL         time.Duration
 	MaxBackoff       time.Duration
+}
+
+func (config PollConfig) currentInterval() time.Duration {
+	if config.IntervalProvider != nil {
+		if interval := config.IntervalProvider(); interval > 0 {
+			return interval
+		}
+	}
+	return config.Interval
 }
 
 type NormalizedTelemetry struct {

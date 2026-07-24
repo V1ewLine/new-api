@@ -23,6 +23,7 @@ import type {
   Cluster,
   ClusterOverview,
   ClusterOverviewParams,
+  ClusterStatusSettings,
   CreateClusterPayload,
   CredentialIssueResponse,
   CredentialVerificationResponse,
@@ -30,6 +31,13 @@ import type {
   ModelOption,
   NormalizedTelemetry,
 } from './types'
+
+export async function getClusterStatusSettings() {
+  const response = await api.get<ApiResponse<ClusterStatusSettings>>(
+    '/api/clusters/settings'
+  )
+  return response.data
+}
 
 export async function getClusterOverview(params: ClusterOverviewParams) {
   const response = await api.get<ApiResponse<ClusterOverview>>(

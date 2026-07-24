@@ -565,7 +565,7 @@ func (service *Service) PollCluster(ctx context.Context, clusterID int64, runner
 		collectedAt = parsed.Unix()
 	}
 	nextPollAt := common.GetTimestamp() + pollDelaySeconds(
-		service.jittered(service.config.Interval, cluster.ID),
+		service.jittered(service.config.currentInterval(), cluster.ID),
 	)
 	err = model.SaveClusterPollSuccess(
 		cluster.ID,
@@ -589,7 +589,7 @@ func (service *Service) finishPollFailure(cluster *model.Cluster, runnerID strin
 
 func (service *Service) finishPollFailureWithDiagnostic(cluster *model.Cluster, runnerID string, errorCode string, diagnosticPayload string) error {
 	failures := cluster.ConsecutiveFailures + 1
-	backoff := service.config.Interval
+	backoff := service.config.currentInterval()
 	for retry := 1; retry < failures && backoff < service.config.MaxBackoff; retry++ {
 		backoff *= 2
 	}
