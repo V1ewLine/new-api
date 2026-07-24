@@ -674,6 +674,12 @@ func decodeLatestTelemetry(latest *model.ClusterTelemetryLatest) *NormalizedTele
 	if err := common.UnmarshalJsonStr(latest.NormalizedPayload, &telemetry); err != nil {
 		return nil
 	}
+	if telemetry.Metrics.Requests != nil && telemetry.Metrics.RequestsSemantics == "" {
+		telemetry.Metrics.RequestsSemantics = "unknown"
+	}
+	if telemetry.Metrics.Tokens != nil && telemetry.Metrics.TokensSemantics == "" {
+		telemetry.Metrics.TokensSemantics = "unknown"
+	}
 	return &telemetry
 }
 

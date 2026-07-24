@@ -165,8 +165,10 @@ type TelemetryAlignment struct {
 }
 
 type TelemetryAggregateMetrics struct {
-	Requests *float64 `json:"requests,omitempty"`
-	Tokens   *float64 `json:"tokens,omitempty"`
+	Requests          *float64 `json:"requests,omitempty"`
+	RequestsSemantics string   `json:"requests_semantics,omitempty"`
+	Tokens            *float64 `json:"tokens,omitempty"`
+	TokensSemantics   string   `json:"tokens_semantics,omitempty"`
 }
 
 type ClusterResponse struct {

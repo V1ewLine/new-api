@@ -20,6 +20,7 @@ import {
   Alert02Icon,
   ArrowLeft01Icon,
   Delete02Icon,
+  Download04Icon,
   InformationCircleIcon,
   Key01Icon,
 } from '@hugeicons/core-free-icons'
@@ -66,6 +67,7 @@ import {
   refreshCluster,
   verifyClusterCredential,
 } from './api'
+import { ClusterExportDialog } from './components/cluster-export-dialog'
 import { DeleteClusterDialog } from './components/delete-cluster-dialog'
 import { RotateClusterCredentialDialog } from './components/rotate-cluster-credential-dialog'
 import { ClusterStatusBadge } from './components/status-badge'
@@ -467,6 +469,7 @@ export function ClusterDetail(props: ClusterDetailProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const refreshInterval = useClusterRefreshInterval()
   const clusterQuery = useQuery({
     queryKey: clusterQueryKeys.cluster(props.clusterId),
@@ -582,6 +585,18 @@ export function ClusterDetail(props: ClusterDetailProps) {
               credentialStatus={cluster.credential_status}
             />
           ) : null}
+          <Button
+            variant='outline'
+            onClick={() => setExportDialogOpen(true)}
+            disabled={!cluster}
+          >
+            <HugeiconsIcon
+              icon={Download04Icon}
+              strokeWidth={2}
+              data-icon='inline-start'
+            />
+            {t('Export')}
+          </Button>
           <Button
             variant='outline'
             onClick={runStatusAction}
@@ -744,6 +759,12 @@ export function ClusterDetail(props: ClusterDetailProps) {
             params: { modelId: String(cluster.model_id) },
           })
         }}
+      />
+      <ClusterExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        context='cluster'
+        clusterId={props.clusterId}
       />
     </>
   )

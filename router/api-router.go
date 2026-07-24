@@ -360,6 +360,7 @@ func SetApiRouter(router *gin.Engine) {
 			clusterRoute.GET("/settings", controller.GetClusterSettings)
 			clusterRoute.GET("/overview", controller.GetClusterOverview)
 			clusterRoute.GET("/model-options", controller.GetClusterModelOptions)
+			clusterRoute.GET("/export/latest", controller.ExportClusterLatestTelemetry)
 			clusterRoute.POST("/", controller.CreateCluster)
 			clusterRoute.GET("/models/:modelId", controller.GetClusterModelDetail)
 			clusterRoute.GET("/:clusterId", controller.GetClusterDetail)

@@ -1,0 +1,9 @@
+{
+  "Exports one row for every cluster linked to this model.": "Exports one row for every cluster linked to this model.",
+  "Exports one row per model using all records that match the current filters.": "Exports one row per model using all records that match the current filters.",
+  "Exports the complete normalized latest snapshot as a JSON file.": "Exports the complete normalized latest snapshot as a JSON file.",
+  "Exports the latest stored snapshot. Agent addresses, Bearer Tokens, and diagnostic payloads are excluded.": "Exports the latest stored snapshot. Agent addresses, Bearer Tokens, and diagnostic payloads are excluded.",
+  "Failed to export cluster data": "Failed to export cluster data",
+  "Includes model, cluster, GPU device, engine load, and normalized telemetry files.": "Includes model, cluster, GPU device, engine load, and normalized telemetry files.",
+  "Includes the cluster row, GPU devices, engine loads, and normalized telemetry.": "Includes the cluster row, GPU devices, engine loads, and normalized telemetry."
+}

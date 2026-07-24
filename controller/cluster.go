@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -72,6 +73,53 @@ func GetClusterModelOptions(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, options)
+}
+
+func ExportClusterLatestTelemetry(c *gin.Context) {
+	service, err := clusterstatus.DefaultService()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	input := clusterstatus.LatestExportInput{
+		Scope:  c.Query("scope"),
+		Format: c.Query("format"),
+		Search: c.Query("search"),
+	}
+	if rawModelID := strings.TrimSpace(c.Query("model_id")); rawModelID != "" {
+		input.ModelID, err = strconv.Atoi(rawModelID)
+		if err != nil || input.ModelID <= 0 {
+			common.ApiErrorMsg(c, "invalid model_id")
+			return
+		}
+	}
+	if rawClusterID := strings.TrimSpace(c.Query("cluster_id")); rawClusterID != "" {
+		input.ClusterID, err = strconv.ParseInt(rawClusterID, 10, 64)
+		if err != nil || input.ClusterID <= 0 {
+			common.ApiErrorMsg(c, "invalid cluster_id")
+			return
+		}
+	}
+	input.Health = model.ClusterHealthStatus(strings.TrimSpace(c.Query("status")))
+
+	prepared, err := service.PrepareLatestExport(input)
+	if err != nil {
+		writeClusterServiceError(c, err)
+		return
+	}
+	c.Header("Content-Type", prepared.ContentType)
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, prepared.Filename))
+	c.Header("Cache-Control", "no-store")
+	c.Header("X-Content-Type-Options", "nosniff")
+	if err := prepared.WriteTo(c.Writer); err != nil {
+		common.SysError("write cluster telemetry export failed: " + err.Error())
+		return
+	}
+	recordManageAudit(c, "cluster.export", map[string]interface{}{
+		"scope":  prepared.Scope,
+		"format": prepared.Format,
+		"count":  prepared.ClusterCount,
+	})
 }
 
 func CreateCluster(c *gin.Context) {
@@ -269,6 +317,10 @@ func writeClusterServiceError(c *gin.Context, err error) {
 		common.ApiErrorMsg(c, "invalid cluster Agent address")
 	case errors.Is(err, clusterstatus.ErrClusterCredentialUnavailable):
 		common.ApiErrorMsg(c, "cluster credential cannot be rotated; recreate the cluster")
+	case errors.Is(err, clusterstatus.ErrClusterExportInvalid):
+		common.ApiErrorMsg(c, "invalid cluster export request")
+	case errors.Is(err, clusterstatus.ErrClusterExportTooLarge):
+		common.ApiErrorMsg(c, "cluster export exceeds the allowed size")
 	default:
 		var pollFailure *clusterstatus.PollFailureError
 		if errors.As(err, &pollFailure) {

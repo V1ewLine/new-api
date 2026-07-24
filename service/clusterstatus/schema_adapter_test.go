@@ -104,7 +104,9 @@ func TestSchemaV1AdapterNormalizesDynamicGPUCounts(t *testing.T) {
 			assert.Equal(t, gpuCount, telemetry.Machine.GPU.Count)
 			assert.Len(t, telemetry.Machine.GPU.Devices, gpuCount)
 			assert.Equal(t, float64(500), *telemetry.Metrics.Requests)
+			assert.Equal(t, "cumulative", telemetry.Metrics.RequestsSemantics)
 			assert.Equal(t, float64(8000), *telemetry.Metrics.Tokens)
+			assert.Equal(t, "cumulative", telemetry.Metrics.TokensSemantics)
 		})
 	}
 }
@@ -140,7 +142,9 @@ func TestSchemaV1AdapterUsesCurrentLoadMetricsWhenCumulativeMetricsAreAbsent(t *
 	require.NotNil(t, telemetry.Metrics.Requests)
 	require.NotNil(t, telemetry.Metrics.Tokens)
 	assert.Equal(t, float64(10), *telemetry.Metrics.Requests)
+	assert.Equal(t, "current_inflight", telemetry.Metrics.RequestsSemantics)
 	assert.Equal(t, float64(200), *telemetry.Metrics.Tokens)
+	assert.Equal(t, "current_usage", telemetry.Metrics.TokensSemantics)
 }
 
 func TestSchemaV1AdapterMarksModelMismatchWithoutChangingIdentity(t *testing.T) {

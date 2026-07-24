@@ -38,6 +38,7 @@ import { useDebounce } from '@/hooks/use-debounce'
 
 import { getClusterModelOptions, getClusterOverview } from './api'
 import { AddClusterDialog } from './components/add-cluster-dialog'
+import { ClusterExportDialog } from './components/cluster-export-dialog'
 import { OverviewContent } from './components/overview-content'
 import { OverviewToolbar } from './components/overview-toolbar'
 import { useClusterRefreshInterval } from './hooks/use-cluster-refresh-interval'
@@ -86,6 +87,7 @@ export function ClusterStatus() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const refreshInterval = useClusterRefreshInterval()
   const params = {
     search: debouncedSearch || undefined,
@@ -140,6 +142,7 @@ export function ClusterStatus() {
               setPage(1)
             }}
             modelOptions={modelOptionsQuery.data ?? []}
+            onExport={() => setExportDialogOpen(true)}
             onAddCluster={() => setAddDialogOpen(true)}
             refreshing={overviewQuery.isFetching && !overviewQuery.isLoading}
           />
@@ -192,6 +195,14 @@ export function ClusterStatus() {
         <AddClusterDialog
           open={addDialogOpen}
           onOpenChange={setAddDialogOpen}
+        />
+        <ClusterExportDialog
+          open={exportDialogOpen}
+          onOpenChange={setExportDialogOpen}
+          context='overview'
+          search={search || undefined}
+          modelId={modelId || undefined}
+          status={status || undefined}
         />
       </SectionPageLayout.Content>
     </SectionPageLayout>

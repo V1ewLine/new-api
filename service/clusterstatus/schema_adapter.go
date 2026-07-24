@@ -148,8 +148,14 @@ func (SchemaV1Adapter) Adapt(raw []byte, expectedModelName string) (*NormalizedT
 		"cache_usage", "cache_usage_percent", "gpu_cache_usage")
 	telemetry.Metrics.Requests = sumLoadMetric(envelope.Engine.Loads,
 		"total_requests", "request_count", "requests")
+	if telemetry.Metrics.Requests != nil {
+		telemetry.Metrics.RequestsSemantics = "cumulative"
+	}
 	telemetry.Metrics.Tokens = sumLoadMetric(envelope.Engine.Loads,
 		"total_tokens", "token_count", "tokens")
+	if telemetry.Metrics.Tokens != nil {
+		telemetry.Metrics.TokensSemantics = "cumulative"
+	}
 	if telemetry.Metrics.Requests == nil {
 		runningRequests := sumLoadMetric(envelope.Engine.Loads,
 			"num_running_reqs", "running_requests", "num_running_requests")
@@ -164,11 +170,15 @@ func (SchemaV1Adapter) Adapt(raw []byte, expectedModelName string) (*NormalizedT
 				currentRequests += *waitingRequests
 			}
 			telemetry.Metrics.Requests = &currentRequests
+			telemetry.Metrics.RequestsSemantics = "current_inflight"
 		}
 	}
 	if telemetry.Metrics.Tokens == nil {
 		telemetry.Metrics.Tokens = sumLoadMetric(envelope.Engine.Loads,
 			"num_total_tokens", "num_used_tokens", "token_usage", "used_tokens")
+		if telemetry.Metrics.Tokens != nil {
+			telemetry.Metrics.TokensSemantics = "current_usage"
+		}
 	}
 
 	if envelope.Machine.Nearest != nil {

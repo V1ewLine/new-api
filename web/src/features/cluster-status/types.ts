@@ -109,7 +109,9 @@ export type NormalizedTelemetry = {
   }
   metrics: {
     requests?: number
+    requests_semantics?: 'cumulative' | 'current_inflight' | 'unknown'
     tokens?: number
+    tokens_semantics?: 'cumulative' | 'current_usage' | 'unknown'
   }
 }
 
@@ -193,6 +195,19 @@ export type ClusterOverviewParams = {
   status?: ClusterHealthStatus
   p?: number
   page_size?: number
+}
+
+export type ClusterExportScope = 'models' | 'clusters' | 'cluster' | 'all'
+
+export type ClusterExportFormat = 'csv' | 'zip' | 'json'
+
+export type ClusterExportParams = {
+  scope: ClusterExportScope
+  format: ClusterExportFormat
+  search?: string
+  model_id?: number
+  cluster_id?: number
+  status?: ClusterHealthStatus
 }
 
 export type CreateClusterPayload = {

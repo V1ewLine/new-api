@@ -16,7 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Add01Icon, SearchIcon } from '@hugeicons/core-free-icons'
+import {
+  Add01Icon,
+  Download04Icon,
+  SearchIcon,
+} from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useTranslation } from 'react-i18next'
 
@@ -39,6 +43,7 @@ type OverviewToolbarProps = {
   status: ClusterHealthStatus | ''
   onStatusChange: (value: ClusterHealthStatus | '') => void
   modelOptions: ModelOption[]
+  onExport: () => void
   onAddCluster: () => void
   refreshing: boolean
 }
@@ -91,6 +96,15 @@ export function OverviewToolbar(props: OverviewToolbarProps) {
         <NativeSelectOption value='offline'>{t('Offline')}</NativeSelectOption>
         <NativeSelectOption value='unknown'>{t('Unknown')}</NativeSelectOption>
       </NativeSelect>
+
+      <Button variant='outline' onClick={props.onExport}>
+        <HugeiconsIcon
+          icon={Download04Icon}
+          strokeWidth={2}
+          data-icon='inline-start'
+        />
+        {t('Export')}
+      </Button>
 
       <Button onClick={props.onAddCluster}>
         <HugeiconsIcon

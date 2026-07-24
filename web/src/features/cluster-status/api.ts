@@ -18,9 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
+import { getExportFilename } from './lib/export'
 import type {
   ApiResponse,
   Cluster,
+  ClusterExportParams,
   ClusterOverview,
   ClusterOverviewParams,
   ClusterStatusSettings,
@@ -52,6 +54,30 @@ export async function getClusterModelOptions() {
     '/api/clusters/model-options'
   )
   return response.data
+}
+
+export async function downloadClusterExport(params: ClusterExportParams) {
+  const response = await api.get<Blob>('/api/clusters/export/latest', {
+    params,
+    responseType: 'blob',
+    skipBusinessError: true,
+    disableDuplicate: true,
+  })
+  const disposition = response.headers['content-disposition']
+  if (!disposition) {
+    const payload = await response.data.text()
+    let errorResponse: ApiResponse<never>
+    try {
+      errorResponse = JSON.parse(payload) as ApiResponse<never>
+    } catch {
+      throw new Error('Cluster export failed')
+    }
+    throw new Error(errorResponse.message || 'Cluster export failed')
+  }
+  return {
+    blob: response.data,
+    filename: getExportFilename(disposition),
+  }
 }
 
 export async function createCluster(payload: CreateClusterPayload) {

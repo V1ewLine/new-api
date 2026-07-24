@@ -20,6 +20,7 @@ import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
   Delete02Icon,
+  Download04Icon,
   InformationCircleIcon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -55,6 +56,7 @@ import {
 } from '@/components/ui/table'
 
 import { getClusterModelDetail } from './api'
+import { ClusterExportDialog } from './components/cluster-export-dialog'
 import { DeleteClusterDialog } from './components/delete-cluster-dialog'
 import { ModelAvatar } from './components/model-avatar'
 import { ClusterStatusBadge } from './components/status-badge'
@@ -88,6 +90,7 @@ function MetricCard(props: {
 export function ClusterModelDetail(props: ClusterModelDetailProps) {
   const { t } = useTranslation()
   const [deleteTarget, setDeleteTarget] = useState<Cluster | null>(null)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const refreshInterval = useClusterRefreshInterval()
   const detailQuery = useQuery({
     queryKey: clusterQueryKeys.model(props.modelId),
@@ -132,6 +135,20 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
             <span>{detail?.model.name ?? t('Model Clusters')}</span>
           </div>
         </SectionPageLayout.Title>
+        <SectionPageLayout.Actions>
+          <Button
+            variant='outline'
+            onClick={() => setExportDialogOpen(true)}
+            disabled={!detail}
+          >
+            <HugeiconsIcon
+              icon={Download04Icon}
+              strokeWidth={2}
+              data-icon='inline-start'
+            />
+            {t('Export')}
+          </Button>
+        </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           {detailQuery.isLoading ? (
             <div className='flex flex-col gap-4'>
@@ -325,6 +342,12 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
             setDeleteTarget(null)
           }
         }}
+      />
+      <ClusterExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        context='model'
+        modelId={props.modelId}
       />
     </>
   )
