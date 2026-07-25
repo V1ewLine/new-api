@@ -216,7 +216,7 @@ func (service *Service) GetOverview(search string, modelID int, health model.Clu
 	if pageSize > 100 {
 		pageSize = 100
 	}
-	clusters, err := model.ListClusters(model.ClusterListFilter{
+	filteredClusters, err := model.ListClusters(model.ClusterListFilter{
 		Search:  search,
 		ModelID: modelID,
 		Health:  health,
@@ -224,9 +224,13 @@ func (service *Service) GetOverview(search string, modelID int, health model.Clu
 	if err != nil {
 		return nil, err
 	}
-	clusterIDs := make([]int64, 0, len(clusters))
-	modelIDs := make([]int, 0, len(clusters))
-	for _, cluster := range clusters {
+	allClusters, err := model.ListClusters(model.ClusterListFilter{})
+	if err != nil {
+		return nil, err
+	}
+	clusterIDs := make([]int64, 0, len(allClusters))
+	modelIDs := make([]int, 0, len(allClusters))
+	for _, cluster := range allClusters {
 		clusterIDs = append(clusterIDs, cluster.ID)
 		modelIDs = append(modelIDs, cluster.ModelID)
 	}
@@ -244,9 +248,8 @@ func (service *Service) GetOverview(search string, modelID int, health model.Clu
 		ModelGroups: []ModelClusterGroup{},
 		Alerts:      []ClusterAlert{},
 	}
-	var gpuUtilizationSumByModel = make(map[int]float64)
-	var gpuUtilizationCountByModel = make(map[int]int)
-	for _, cluster := range clusters {
+	now := common.GetTimestamp()
+	for _, cluster := range allClusters {
 		response.Overview.TotalClusters++
 		if cluster.CredentialStatus == model.ClusterCredentialActive {
 			switch cluster.HealthStatus {
@@ -257,6 +260,35 @@ func (service *Service) GetOverview(search string, modelID int, health model.Clu
 			}
 		}
 
+		normalized := decodeLatestTelemetry(telemetryMap[cluster.ID])
+		addCurrentClusterLoadToOverview(&response.Overview, cluster, normalized, now)
+
+		if cluster.CredentialStatus != model.ClusterCredentialActive ||
+			(cluster.HealthStatus != model.ClusterHealthAbnormal &&
+				cluster.HealthStatus != model.ClusterHealthOffline &&
+				cluster.HealthStatus != model.ClusterHealthPartial) {
+			continue
+		}
+		modelName := cluster.ModelNameSnapshot
+		if linkedModel := modelMap[cluster.ModelID]; linkedModel != nil {
+			modelName = linkedModel.ModelName
+		}
+		response.Alerts = append(response.Alerts, ClusterAlert{
+			ClusterID:           cluster.ID,
+			ClusterName:         cluster.Name,
+			ModelName:           modelName,
+			HealthStatus:        cluster.HealthStatus,
+			ErrorCode:           cluster.LastErrorCode,
+			LastPolledAt:        cluster.LastPolledAt,
+			LastSuccessAt:       cluster.LastSuccessAt,
+			ConsecutiveFailures: cluster.ConsecutiveFailures,
+		})
+	}
+	syncLegacyCurrentLoadOverview(&response.Overview)
+
+	var gpuUtilizationSumByModel = make(map[int]float64)
+	var gpuUtilizationCountByModel = make(map[int]int)
+	for _, cluster := range filteredClusters {
 		linkedModel := modelMap[cluster.ModelID]
 		modelName := cluster.ModelNameSnapshot
 		available := false
@@ -295,18 +327,6 @@ func (service *Service) GetOverview(search string, modelID int, health model.Clu
 
 		normalized := decodeLatestTelemetry(telemetryMap[cluster.ID])
 		if normalized != nil {
-			if normalized.Metrics.Requests != nil {
-				modelSummary.TotalRequests += *normalized.Metrics.Requests
-				modelSummary.RequestsAvailable = true
-				response.Overview.TotalRequests += *normalized.Metrics.Requests
-				response.Overview.RequestsAvailable = true
-			}
-			if normalized.Metrics.Tokens != nil {
-				modelSummary.TotalTokens += *normalized.Metrics.Tokens
-				modelSummary.TokensAvailable = true
-				response.Overview.TotalTokens += *normalized.Metrics.Tokens
-				response.Overview.TokensAvailable = true
-			}
 			for _, device := range normalized.Machine.GPU.Devices {
 				if device.UtilizationPercent == nil {
 					continue
@@ -315,26 +335,12 @@ func (service *Service) GetOverview(search string, modelID int, health model.Clu
 				gpuUtilizationCountByModel[cluster.ModelID]++
 			}
 		}
-
-		if cluster.CredentialStatus == model.ClusterCredentialActive &&
-			(cluster.HealthStatus == model.ClusterHealthAbnormal ||
-				cluster.HealthStatus == model.ClusterHealthOffline ||
-				cluster.HealthStatus == model.ClusterHealthPartial) {
-			response.Alerts = append(response.Alerts, ClusterAlert{
-				ClusterID:           cluster.ID,
-				ClusterName:         cluster.Name,
-				ModelName:           modelName,
-				HealthStatus:        cluster.HealthStatus,
-				ErrorCode:           cluster.LastErrorCode,
-				LastPolledAt:        cluster.LastPolledAt,
-				LastSuccessAt:       cluster.LastSuccessAt,
-				ConsecutiveFailures: cluster.ConsecutiveFailures,
-			})
-		}
+		addCurrentClusterLoadToModel(modelSummary, cluster, normalized, now)
 	}
 
 	modelSummaries := make([]ModelClusterSummary, 0, len(summaryByModel))
 	for modelID, modelSummary := range summaryByModel {
+		syncLegacyCurrentLoadModel(modelSummary)
 		if count := gpuUtilizationCountByModel[modelID]; count > 0 {
 			average := gpuUtilizationSumByModel[modelID] / float64(count)
 			modelSummary.GPUUtilization = &average
@@ -415,6 +421,7 @@ func (service *Service) GetModelDetail(modelID int) (*ModelDetailResponse, error
 	clusterResponses := make([]ClusterResponse, 0, len(clusters))
 	var utilizationTotal float64
 	var utilizationCount int
+	now := common.GetTimestamp()
 	for _, cluster := range clusters {
 		normalized := decodeLatestTelemetry(telemetryMap[cluster.ID])
 		clusterResponses = append(clusterResponses, *service.clusterResponse(cluster, &linkedModel, normalized))
@@ -430,16 +437,9 @@ func (service *Service) GetModelDetail(modelID int) (*ModelDetailResponse, error
 			}
 			summary.HealthStatus = mergeHealthStatus(summary.HealthStatus, cluster.HealthStatus)
 		}
+		addCurrentClusterLoadToModel(&summary, cluster, normalized, now)
 		if normalized == nil {
 			continue
-		}
-		if normalized.Metrics.Requests != nil {
-			summary.TotalRequests += *normalized.Metrics.Requests
-			summary.RequestsAvailable = true
-		}
-		if normalized.Metrics.Tokens != nil {
-			summary.TotalTokens += *normalized.Metrics.Tokens
-			summary.TokensAvailable = true
 		}
 		for _, device := range normalized.Machine.GPU.Devices {
 			if device.UtilizationPercent != nil {
@@ -452,6 +452,7 @@ func (service *Service) GetModelDetail(modelID int) (*ModelDetailResponse, error
 		average := utilizationTotal / float64(utilizationCount)
 		summary.GPUUtilization = &average
 	}
+	syncLegacyCurrentLoadModel(&summary)
 	return &ModelDetailResponse{
 		Model:    modelOption(&linkedModel, available),
 		Summary:  summary,
@@ -683,6 +684,94 @@ func decodeLatestTelemetry(latest *model.ClusterTelemetryLatest) *NormalizedTele
 		telemetry.Metrics.TokensSemantics = "unknown"
 	}
 	return &telemetry
+}
+
+func currentClusterLoad(
+	cluster *model.Cluster,
+	telemetry *NormalizedTelemetry,
+	now int64,
+) (requests float64, requestsAvailable bool, tokens float64, tokensAvailable bool, monitored bool) {
+	if cluster == nil || !cluster.Enabled || cluster.CredentialStatus != model.ClusterCredentialActive {
+		return 0, false, 0, false, false
+	}
+	monitored = true
+	staleAfter := int64(common.GetClusterStatusRefreshIntervalSeconds() * 3)
+	if staleAfter < 30 {
+		staleAfter = 30
+	}
+	if telemetry == nil || cluster.LastSuccessAt <= 0 || now-cluster.LastSuccessAt > staleAfter {
+		return 0, false, 0, false, true
+	}
+	running := nonNegativeFiniteMetric(telemetry.Engine.RunningRequests)
+	waiting := nonNegativeFiniteMetric(telemetry.Engine.WaitingRequests)
+	if running != nil && waiting != nil {
+		requests = *running + *waiting
+		requestsAvailable = true
+	}
+	tokenUsage := nonNegativeFiniteMetric(telemetry.Engine.TokenUsage)
+	if tokenUsage != nil {
+		tokens = *tokenUsage
+		tokensAvailable = true
+	}
+	return requests, requestsAvailable, tokens, tokensAvailable, true
+}
+
+func addCurrentClusterLoadToOverview(
+	summary *OverviewSummary,
+	cluster *model.Cluster,
+	telemetry *NormalizedTelemetry,
+	now int64,
+) {
+	requests, requestsAvailable, tokens, tokensAvailable, monitored := currentClusterLoad(cluster, telemetry, now)
+	if monitored {
+		summary.MonitoredClusters++
+	}
+	if requestsAvailable {
+		summary.CurrentRequests += requests
+		summary.CurrentRequestsAvailable = true
+		summary.RequestsReportingClusters++
+	}
+	if tokensAvailable {
+		summary.CurrentTokenUsage += tokens
+		summary.CurrentTokenUsageAvailable = true
+		summary.TokensReportingClusters++
+	}
+}
+
+func addCurrentClusterLoadToModel(
+	summary *ModelClusterSummary,
+	cluster *model.Cluster,
+	telemetry *NormalizedTelemetry,
+	now int64,
+) {
+	requests, requestsAvailable, tokens, tokensAvailable, monitored := currentClusterLoad(cluster, telemetry, now)
+	if monitored {
+		summary.MonitoredClusters++
+	}
+	if requestsAvailable {
+		summary.CurrentRequests += requests
+		summary.CurrentRequestsAvailable = true
+		summary.RequestsReportingClusters++
+	}
+	if tokensAvailable {
+		summary.CurrentTokenUsage += tokens
+		summary.CurrentTokenUsageAvailable = true
+		summary.TokensReportingClusters++
+	}
+}
+
+func syncLegacyCurrentLoadOverview(summary *OverviewSummary) {
+	summary.TotalRequests = summary.CurrentRequests
+	summary.TotalTokens = summary.CurrentTokenUsage
+	summary.RequestsAvailable = summary.CurrentRequestsAvailable
+	summary.TokensAvailable = summary.CurrentTokenUsageAvailable
+}
+
+func syncLegacyCurrentLoadModel(summary *ModelClusterSummary) {
+	summary.TotalRequests = summary.CurrentRequests
+	summary.TotalTokens = summary.CurrentTokenUsage
+	summary.RequestsAvailable = summary.CurrentRequestsAvailable
+	summary.TokensAvailable = summary.CurrentTokenUsageAvailable
 }
 
 func loadClusterModels(modelIDs []int) (map[int]*model.Model, error) {

@@ -27,7 +27,7 @@ import {
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { getRouteApi, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -61,19 +61,27 @@ import {
 
 import { getClusterModelDetail } from './api'
 import { AddClusterDialog } from './components/add-cluster-dialog'
+import { AggregateLoadTrends } from './components/aggregate-load-trends'
 import { ClusterExportDialog } from './components/cluster-export-dialog'
 import { DeleteClusterDialog } from './components/delete-cluster-dialog'
 import { ModelAvatar } from './components/model-avatar'
 import { ClusterStatusBadge } from './components/status-badge'
 import { TelemetryFreshness } from './components/telemetry-freshness'
 import { useClusterRefreshInterval } from './hooks/use-cluster-refresh-interval'
+import { useTelemetryTrends } from './hooks/use-cluster-telemetry-trends'
 import { formatCompactNumber, formatWatts } from './lib/format'
+import {
+  trendRangeFromRouteSearch,
+  trendRangeToRouteSearch,
+} from './lib/route-state'
 import { clusterQueryKeys } from './query-keys'
 import type { Cluster } from './types'
 
 type ClusterModelDetailProps = {
   modelId: number
 }
+
+const route = getRouteApi('/_authenticated/cluster-status/models/$modelId')
 
 function MetricCard(props: {
   title: string
@@ -98,7 +106,10 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
   const [deleteTarget, setDeleteTarget] = useState<Cluster | null>(null)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const routeSearch = route.useSearch()
+  const routeNavigate = route.useNavigate()
   const refreshInterval = useClusterRefreshInterval()
+  const trendRange = trendRangeFromRouteSearch(routeSearch)
   const detailQuery = useQuery({
     queryKey: clusterQueryKeys.model(props.modelId),
     queryFn: async () => {
@@ -109,6 +120,11 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
       return response.data
     },
     refetchInterval: refreshInterval,
+  })
+  const trendQuery = useTelemetryTrends({
+    scope: { kind: 'model', modelId: props.modelId },
+    range: trendRange,
+    refreshInterval,
   })
 
   const detail = detailQuery.data
@@ -145,10 +161,12 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
         <SectionPageLayout.Actions>
           <Button
             variant='outline'
-            onClick={() => detailQuery.refetch()}
-            disabled={detailQuery.isFetching}
+            onClick={() =>
+              void Promise.all([detailQuery.refetch(), trendQuery.refetch()])
+            }
+            disabled={detailQuery.isFetching || trendQuery.isFetching}
           >
-            {detailQuery.isFetching ? (
+            {detailQuery.isFetching || trendQuery.isFetching ? (
               <Spinner data-icon='inline-start' />
             ) : (
               <HugeiconsIcon
@@ -157,7 +175,9 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
                 data-icon='inline-start'
               />
             )}
-            {detailQuery.isFetching ? t('Refreshing...') : t('Refresh')}
+            {detailQuery.isFetching || trendQuery.isFetching
+              ? t('Refreshing...')
+              : t('Refresh')}
           </Button>
           <Button
             variant='outline'
@@ -248,24 +268,56 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
                   description={t('Require attention')}
                 />
                 <MetricCard
-                  title={t('Total Requests')}
+                  title={t('Current Requests')}
                   value={formatCompactNumber(
-                    detail.summary.requests_available
-                      ? detail.summary.total_requests
+                    detail.summary.current_requests_available
+                      ? detail.summary.current_requests
                       : undefined
                   )}
-                  description={t('Reported by connected Agents')}
+                  description={t(
+                    '{{reporting}}/{{monitored}} monitored clusters reporting',
+                    {
+                      reporting: detail.summary.requests_reporting_clusters,
+                      monitored: detail.summary.monitored_clusters,
+                    }
+                  )}
                 />
                 <MetricCard
-                  title={t('Total Tokens')}
+                  title={t('Current Token Usage')}
                   value={formatCompactNumber(
-                    detail.summary.tokens_available
-                      ? detail.summary.total_tokens
+                    detail.summary.current_token_usage_available
+                      ? detail.summary.current_token_usage
                       : undefined
                   )}
-                  description={t('Reported by connected Agents')}
+                  description={t(
+                    '{{reporting}}/{{monitored}} monitored clusters reporting',
+                    {
+                      reporting: detail.summary.tokens_reporting_clusters,
+                      monitored: detail.summary.monitored_clusters,
+                    }
+                  )}
                 />
               </div>
+
+              <AggregateLoadTrends
+                title={t('Current Model Load Trends')}
+                description={t(
+                  'Current request and token load for this model over the selected time window.'
+                )}
+                scope={{ kind: 'model', modelId: props.modelId }}
+                range={trendRange}
+                onRangeChange={(value) => {
+                  routeNavigate({
+                    replace: true,
+                    search: (previous) => ({
+                      ...previous,
+                      ...trendRangeToRouteSearch(value),
+                    }),
+                  })
+                }}
+                refreshInterval={refreshInterval}
+                query={trendQuery}
+              />
 
               <Card>
                 <CardHeader>

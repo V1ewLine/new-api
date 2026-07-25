@@ -55,8 +55,9 @@ import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
 
 import {
-  useClusterTelemetryTrends,
-  type ClusterTelemetryTrendQuery,
+  useTelemetryTrends,
+  type TelemetryTrendQuery,
+  type TelemetryTrendScope,
 } from '../hooks/use-cluster-telemetry-trends'
 import type { TelemetryTrendTimeRange } from '../lib/trend-range'
 import type { TelemetryTrendPoint, TelemetryTrendResponse } from '../types'
@@ -79,18 +80,22 @@ export type TelemetryTrendChartConfig = {
     points: TelemetryTrendPoint[],
     translate: TFunction
   ) => TelemetryTrendSeries[]
+  coverage?: (point: TelemetryTrendPoint) => {
+    reporting: number
+    monitored: number
+  }
 }
 
 type TelemetryTrendGridProps = {
-  clusterId: number
+  scope: TelemetryTrendScope
   range: TelemetryTrendTimeRange
   refreshInterval: number
-  query: ClusterTelemetryTrendQuery
+  query: TelemetryTrendQuery
   configs: TelemetryTrendChartConfig[]
 }
 
 type TelemetryTrendChartCardProps = {
-  clusterId: number
+  scope: TelemetryTrendScope
   range: TelemetryTrendTimeRange
   refreshInterval: number
   response: TelemetryTrendResponse
@@ -166,11 +171,19 @@ function TelemetryTrendChartCanvas(props: {
         minute: '2-digit',
         second: '2-digit',
       })
+      const coverage = props.config.coverage?.(point)
+      const coverageText = coverage
+        ? t('{{reporting}}/{{monitored}} monitored clusters reporting', {
+            reporting: coverage.reporting,
+            monitored: coverage.monitored,
+          })
+        : ''
       return series.map((item) => ({
         time,
         fullTime,
         series: item.label,
         value: item.value(point) ?? null,
+        coverageText,
       }))
     })
     if (!rows.some((row) => typeof row.value === 'number')) {
@@ -209,6 +222,20 @@ function TelemetryTrendChartCanvas(props: {
           title: {
             value: (datum: { fullTime?: string }) => datum.fullTime ?? '',
           },
+          content: [
+            {
+              key: (datum: { series?: string }) => datum.series ?? '',
+              value: (datum: { value?: number; coverageText?: string }) => {
+                const value =
+                  typeof datum.value === 'number'
+                    ? axisValue(datum.value, props.config.unit)
+                    : '—'
+                return datum.coverageText
+                  ? `${value} · ${datum.coverageText}`
+                  : value
+              },
+            },
+          ],
         },
       },
       axes: [
@@ -288,8 +315,8 @@ function TelemetryTrendChartCard(props: TelemetryTrendChartCardProps) {
   const [expandedRange, setExpandedRange] = useState(() =>
     cloneRange(props.range)
   )
-  const expandedQuery = useClusterTelemetryTrends({
-    clusterId: props.clusterId,
+  const expandedQuery = useTelemetryTrends({
+    scope: props.scope,
     range: expandedRange,
     refreshInterval: props.refreshInterval,
     maxPoints: 1440,
@@ -302,6 +329,10 @@ function TelemetryTrendChartCard(props: TelemetryTrendChartCardProps) {
     }
     setOpen(nextOpen)
   }
+  const latestCoverage = [...props.response.points]
+    .reverse()
+    .map((point) => props.config.coverage?.(point))
+    .find((coverage) => coverage && coverage.reporting > 0)
 
   return (
     <>
@@ -316,12 +347,22 @@ function TelemetryTrendChartCard(props: TelemetryTrendChartCardProps) {
             points={props.response.points}
           />
         </CardContent>
-        <CardFooter className='justify-between'>
+        <CardFooter className='items-end justify-between gap-2'>
           <span className='text-muted-foreground text-xs'>
-            {t('{{count}} samples · {{seconds}}s buckets', {
-              count: props.response.sample_count,
-              seconds: props.response.bucket_seconds,
-            })}
+            <span className='block'>
+              {t('{{count}} samples · {{seconds}}s buckets', {
+                count: props.response.sample_count,
+                seconds: props.response.bucket_seconds,
+              })}
+            </span>
+            {latestCoverage ? (
+              <span className='mt-1 block'>
+                {t('{{reporting}}/{{monitored}} monitored clusters reporting', {
+                  reporting: latestCoverage.reporting,
+                  monitored: latestCoverage.monitored,
+                })}
+              </span>
+            ) : null}
           </span>
           <Button
             type='button'
@@ -469,7 +510,7 @@ export function TelemetryTrendGrid(props: TelemetryTrendGridProps) {
       {props.configs.map((config) => (
         <TelemetryTrendChartCard
           key={config.id}
-          clusterId={props.clusterId}
+          scope={props.scope}
           range={props.range}
           refreshInterval={props.refreshInterval}
           response={response}

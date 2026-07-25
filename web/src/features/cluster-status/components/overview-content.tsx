@@ -65,6 +65,8 @@ type OverviewContentProps = {
   onAddCluster: () => void
   onPageChange: (page: number) => void
   onPageSizeChange: (pageSize: number) => void
+  afterSummary?: ReactNode
+  toolbar?: ReactNode
 }
 
 function SummaryCard(props: {
@@ -135,21 +137,23 @@ function ModelSummaryCard(props: { model: ModelClusterSummary }) {
           <div className='mt-1 font-medium'>{props.model.abnormal_count}</div>
         </div>
         <div>
-          <div className='text-muted-foreground'>{t('Requests')}</div>
+          <div className='text-muted-foreground'>{t('Current Requests')}</div>
           <div className='mt-1 font-medium'>
             {formatCompactNumber(
-              props.model.requests_available
-                ? props.model.total_requests
+              props.model.current_requests_available
+                ? props.model.current_requests
                 : undefined
             )}
           </div>
         </div>
         <div>
-          <div className='text-muted-foreground'>{t('Tokens')}</div>
+          <div className='text-muted-foreground'>
+            {t('Current Token Usage')}
+          </div>
           <div className='mt-1 font-medium'>
             {formatCompactNumber(
-              props.model.tokens_available
-                ? props.model.total_tokens
+              props.model.current_token_usage_available
+                ? props.model.current_token_usage
                 : undefined
             )}
           </div>
@@ -250,11 +254,19 @@ export function OverviewContent(props: OverviewContentProps) {
           }
         />
         <SummaryCard
-          title={t('Total Requests')}
+          title={t('Current Requests')}
           value={formatCompactNumber(
-            overview.requests_available ? overview.total_requests : undefined
+            overview.current_requests_available
+              ? overview.current_requests
+              : undefined
           )}
-          description={t('Reported by connected Agents')}
+          description={t(
+            '{{reporting}}/{{monitored}} monitored clusters reporting',
+            {
+              reporting: overview.requests_reporting_clusters,
+              monitored: overview.monitored_clusters,
+            }
+          )}
           icon={
             <HugeiconsIcon
               icon={InformationCircleIcon}
@@ -264,11 +276,19 @@ export function OverviewContent(props: OverviewContentProps) {
           }
         />
         <SummaryCard
-          title={t('Total Tokens')}
+          title={t('Current Token Usage')}
           value={formatCompactNumber(
-            overview.tokens_available ? overview.total_tokens : undefined
+            overview.current_token_usage_available
+              ? overview.current_token_usage
+              : undefined
           )}
-          description={t('Reported by connected Agents')}
+          description={t(
+            '{{reporting}}/{{monitored}} monitored clusters reporting',
+            {
+              reporting: overview.tokens_reporting_clusters,
+              monitored: overview.monitored_clusters,
+            }
+          )}
           icon={
             <HugeiconsIcon
               icon={InformationCircleIcon}
@@ -278,6 +298,9 @@ export function OverviewContent(props: OverviewContentProps) {
           }
         />
       </div>
+
+      {props.afterSummary}
+      {props.toolbar}
 
       <div className='grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]'>
         <div className='flex min-w-0 flex-col gap-5'>

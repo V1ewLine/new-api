@@ -19,7 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
-import { getClusterTelemetryTrends } from '../api'
+import {
+  getAggregateClusterTelemetryTrends,
+  getClusterTelemetryTrends,
+} from '../api'
 import {
   telemetryTrendRangeKey,
   telemetryTrendRangeParams,
@@ -35,22 +38,44 @@ type UseClusterTelemetryTrendsOptions = {
   enabled?: boolean
 }
 
-export function useClusterTelemetryTrends(
-  options: UseClusterTelemetryTrendsOptions
-) {
+export type TelemetryTrendScope =
+  | { kind: 'cluster'; clusterId: number }
+  | { kind: 'overview' }
+  | { kind: 'model'; modelId: number }
+
+type UseTelemetryTrendsOptions = {
+  scope: TelemetryTrendScope
+  range: TelemetryTrendTimeRange
+  refreshInterval: number
+  maxPoints?: number
+  enabled?: boolean
+}
+
+export function useTelemetryTrends(options: UseTelemetryTrendsOptions) {
   const { t } = useTranslation()
   const maxPoints = options.maxPoints ?? 720
+  const rangeKey = telemetryTrendRangeKey(options.range)
+  const queryKey =
+    options.scope.kind === 'cluster'
+      ? clusterQueryKeys.trends(options.scope.clusterId, rangeKey, maxPoints)
+      : clusterQueryKeys.aggregateTrends(
+          options.scope.kind === 'model' ? options.scope.modelId : undefined,
+          rangeKey,
+          maxPoints
+        )
   return useQuery({
-    queryKey: clusterQueryKeys.trends(
-      options.clusterId,
-      telemetryTrendRangeKey(options.range),
-      maxPoints
-    ),
+    queryKey,
     queryFn: async () => {
-      const response = await getClusterTelemetryTrends(
-        options.clusterId,
-        telemetryTrendRangeParams(options.range, maxPoints)
-      )
+      const params = telemetryTrendRangeParams(options.range, maxPoints)
+      const response =
+        options.scope.kind === 'cluster'
+          ? await getClusterTelemetryTrends(options.scope.clusterId, params)
+          : await getAggregateClusterTelemetryTrends(
+              options.scope.kind === 'model'
+                ? options.scope.modelId
+                : undefined,
+              params
+            )
       if (!response.success || !response.data) {
         throw new Error(
           response.message || t('Failed to load telemetry trends')
@@ -64,6 +89,17 @@ export function useClusterTelemetryTrends(
   })
 }
 
-export type ClusterTelemetryTrendQuery = ReturnType<
-  typeof useClusterTelemetryTrends
->
+export function useClusterTelemetryTrends(
+  options: UseClusterTelemetryTrendsOptions
+) {
+  return useTelemetryTrends({
+    scope: { kind: 'cluster', clusterId: options.clusterId },
+    range: options.range,
+    refreshInterval: options.refreshInterval,
+    maxPoints: options.maxPoints,
+    enabled: options.enabled,
+  })
+}
+
+export type TelemetryTrendQuery = ReturnType<typeof useTelemetryTrends>
+export type ClusterTelemetryTrendQuery = TelemetryTrendQuery

@@ -101,6 +101,7 @@ type ClusterTelemetryHistoryFilter struct {
 }
 
 type ClusterTelemetryHistoryBucket struct {
+	ClusterID       int64 `gorm:"column:cluster_id"`
 	BucketStart     int64 `gorm:"column:bucket_start"`
 	LatestSuccessID int64 `gorm:"column:latest_success_id"`
 	SampleCount     int64 `gorm:"column:sample_count"`
@@ -511,6 +512,53 @@ func ListClusterTelemetryHistoryBuckets(
 	return rows, err
 }
 
+func ListClusterTelemetryHistoryBucketsByClusterIDs(
+	ctx context.Context,
+	clusterIDs []int64,
+	fromInclusive int64,
+	toExclusive int64,
+	bucketSeconds int64,
+	maxBuckets int,
+) ([]ClusterTelemetryHistoryBucket, error) {
+	if len(clusterIDs) == 0 || fromInclusive <= 0 || toExclusive <= fromInclusive || bucketSeconds <= 0 {
+		return []ClusterTelemetryHistoryBucket{}, nil
+	}
+	if maxBuckets <= 0 {
+		maxBuckets = 720
+	}
+	if maxBuckets > 2000 {
+		maxBuckets = 2000
+	}
+
+	bucketExpr := fmt.Sprintf("(collected_at / %d) * %d", bucketSeconds, bucketSeconds)
+	if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
+		bucketExpr = fmt.Sprintf("FLOOR(collected_at / %d) * %d", bucketSeconds, bucketSeconds)
+	}
+	rows := make([]ClusterTelemetryHistoryBucket, 0, maxBuckets*len(clusterIDs))
+	err := DB.WithContext(ctx).
+		Model(&ClusterTelemetryHistory{}).
+		Select(
+			fmt.Sprintf(
+				"cluster_id, %s AS bucket_start, "+
+					"MAX(CASE WHEN status = 'success' THEN id ELSE NULL END) AS latest_success_id, "+
+					"COUNT(*) AS sample_count, "+
+					"SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS success_count",
+				bucketExpr,
+			),
+		).
+		Where(
+			"cluster_id IN ? AND collected_at >= ? AND collected_at < ?",
+			clusterIDs,
+			fromInclusive,
+			toExclusive,
+		).
+		Group("cluster_id, " + bucketExpr).
+		Order("bucket_start ASC, cluster_id ASC").
+		Limit(maxBuckets * len(clusterIDs)).
+		Scan(&rows).Error
+	return rows, err
+}
+
 func ListClusterTelemetryHistoryByIDs(ctx context.Context, ids []int64) ([]*ClusterTelemetryHistory, error) {
 	if len(ids) == 0 {
 		return []*ClusterTelemetryHistory{}, nil
@@ -551,6 +599,21 @@ func GetClusterTelemetryHistoryAvailableFromByClusterID(clusterID int64) (int64,
 	var row ClusterTelemetryHistory
 	err := DB.Select("collected_at").
 		Where("cluster_id = ?", clusterID).
+		Order("collected_at ASC, id ASC").
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, nil
+	}
+	return row.CollectedAt, err
+}
+
+func GetClusterTelemetryHistoryAvailableFromByClusterIDs(clusterIDs []int64) (int64, error) {
+	if len(clusterIDs) == 0 {
+		return 0, nil
+	}
+	var row ClusterTelemetryHistory
+	err := DB.Select("collected_at").
+		Where("cluster_id IN ?", clusterIDs).
 		Order("collected_at ASC, id ASC").
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {

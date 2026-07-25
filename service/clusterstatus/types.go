@@ -214,13 +214,20 @@ type ModelOption struct {
 }
 
 type OverviewSummary struct {
-	TotalClusters     int     `json:"total_clusters"`
-	OnlineClusters    int     `json:"online_clusters"`
-	AbnormalClusters  int     `json:"abnormal_clusters"`
-	TotalRequests     float64 `json:"total_requests"`
-	TotalTokens       float64 `json:"total_tokens"`
-	RequestsAvailable bool    `json:"requests_available"`
-	TokensAvailable   bool    `json:"tokens_available"`
+	TotalClusters              int     `json:"total_clusters"`
+	OnlineClusters             int     `json:"online_clusters"`
+	AbnormalClusters           int     `json:"abnormal_clusters"`
+	CurrentRequests            float64 `json:"current_requests"`
+	CurrentTokenUsage          float64 `json:"current_token_usage"`
+	CurrentRequestsAvailable   bool    `json:"current_requests_available"`
+	CurrentTokenUsageAvailable bool    `json:"current_token_usage_available"`
+	RequestsReportingClusters  int     `json:"requests_reporting_clusters"`
+	TokensReportingClusters    int     `json:"tokens_reporting_clusters"`
+	MonitoredClusters          int     `json:"monitored_clusters"`
+	TotalRequests              float64 `json:"total_requests"`
+	TotalTokens                float64 `json:"total_tokens"`
+	RequestsAvailable          bool    `json:"requests_available"`
+	TokensAvailable            bool    `json:"tokens_available"`
 }
 
 type ClusterAlert struct {
@@ -235,20 +242,27 @@ type ClusterAlert struct {
 }
 
 type ModelClusterSummary struct {
-	ModelID           int                       `json:"model_id"`
-	ModelName         string                    `json:"model_name"`
-	Icon              string                    `json:"icon,omitempty"`
-	Type              string                    `json:"type"`
-	ModelAvailable    bool                      `json:"model_available"`
-	HealthStatus      model.ClusterHealthStatus `json:"health_status"`
-	ClusterCount      int                       `json:"cluster_count"`
-	OnlineCount       int                       `json:"online_count"`
-	AbnormalCount     int                       `json:"abnormal_count"`
-	TotalRequests     float64                   `json:"total_requests"`
-	TotalTokens       float64                   `json:"total_tokens"`
-	RequestsAvailable bool                      `json:"requests_available"`
-	TokensAvailable   bool                      `json:"tokens_available"`
-	GPUUtilization    *float64                  `json:"gpu_utilization,omitempty"`
+	ModelID                    int                       `json:"model_id"`
+	ModelName                  string                    `json:"model_name"`
+	Icon                       string                    `json:"icon,omitempty"`
+	Type                       string                    `json:"type"`
+	ModelAvailable             bool                      `json:"model_available"`
+	HealthStatus               model.ClusterHealthStatus `json:"health_status"`
+	ClusterCount               int                       `json:"cluster_count"`
+	OnlineCount                int                       `json:"online_count"`
+	AbnormalCount              int                       `json:"abnormal_count"`
+	CurrentRequests            float64                   `json:"current_requests"`
+	CurrentTokenUsage          float64                   `json:"current_token_usage"`
+	CurrentRequestsAvailable   bool                      `json:"current_requests_available"`
+	CurrentTokenUsageAvailable bool                      `json:"current_token_usage_available"`
+	RequestsReportingClusters  int                       `json:"requests_reporting_clusters"`
+	TokensReportingClusters    int                       `json:"tokens_reporting_clusters"`
+	MonitoredClusters          int                       `json:"monitored_clusters"`
+	TotalRequests              float64                   `json:"total_requests"`
+	TotalTokens                float64                   `json:"total_tokens"`
+	RequestsAvailable          bool                      `json:"requests_available"`
+	TokensAvailable            bool                      `json:"tokens_available"`
+	GPUUtilization             *float64                  `json:"gpu_utilization,omitempty"`
 }
 
 type ModelClusterGroup struct {

@@ -345,11 +345,127 @@ func TestOverviewCombinesSearchStatusAndModelPagination(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Equal(t, 1, response.Overview.TotalClusters)
+	assert.Equal(t, 3, response.Overview.TotalClusters)
 	assert.Equal(t, 1, response.Pagination.Total)
 	require.Len(t, response.ModelGroups, 1)
 	require.Len(t, response.ModelGroups[0].Models, 1)
 	assert.Equal(t, modelA.Id, response.ModelGroups[0].Models[0].ModelID)
+}
+
+func TestOverviewCurrentLoadIsGlobalFreshAndUsesEngineMetrics(t *testing.T) {
+	setupClusterServiceTestDB(t)
+	service := testService(t, failingAgentClient{})
+	modelA := createTestModel(t, "model-a", 1)
+	modelB := createTestModel(t, "model-b", 1)
+	now := common.GetTimestamp()
+	clusters := []*model.Cluster{
+		{
+			ModelID: modelA.Id, ModelNameSnapshot: modelA.ModelName, Name: "fresh-a",
+			Enabled: true, HealthStatus: model.ClusterHealthOnline,
+			CredentialStatus: model.ClusterCredentialActive, LastSuccessAt: now,
+		},
+		{
+			ModelID: modelB.Id, ModelNameSnapshot: modelB.ModelName, Name: "fresh-b",
+			Enabled: true, HealthStatus: model.ClusterHealthOnline,
+			CredentialStatus: model.ClusterCredentialActive, LastSuccessAt: now,
+		},
+		{
+			ModelID: modelA.Id, ModelNameSnapshot: modelA.ModelName, Name: "stale",
+			Enabled: true, HealthStatus: model.ClusterHealthOnline,
+			CredentialStatus: model.ClusterCredentialActive, LastSuccessAt: now - 60,
+		},
+		{
+			ModelID: modelA.Id, ModelNameSnapshot: modelA.ModelName, Name: "pending",
+			Enabled: true, HealthStatus: model.ClusterHealthUnknown,
+			CredentialStatus: model.ClusterCredentialPending, LastSuccessAt: now,
+		},
+	}
+	for _, cluster := range clusters {
+		require.NoError(t, model.CreateCluster(cluster))
+	}
+	createLatestTelemetry(t, clusters[0], 2, 1, 30, 9000, 8000)
+	createLatestTelemetry(t, clusters[1], 4, 3, 70, 7000, 6000)
+	createLatestTelemetry(t, clusters[2], 100, 100, 1000, 1, 1)
+	createLatestTelemetry(t, clusters[3], 100, 100, 1000, 1, 1)
+
+	response, err := service.GetOverview("fresh-a", modelA.Id, model.ClusterHealthOnline, 1, 10)
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, response.Overview.MonitoredClusters)
+	assert.Equal(t, 2, response.Overview.RequestsReportingClusters)
+	assert.Equal(t, 2, response.Overview.TokensReportingClusters)
+	assert.Equal(t, float64(10), response.Overview.CurrentRequests)
+	assert.Equal(t, float64(100), response.Overview.CurrentTokenUsage)
+	assert.Equal(t, response.Overview.CurrentRequests, response.Overview.TotalRequests)
+	require.Len(t, response.ModelGroups, 1)
+	modelSummary := response.ModelGroups[0].Models[0]
+	assert.Equal(t, float64(3), modelSummary.CurrentRequests)
+	assert.Equal(t, float64(30), modelSummary.CurrentTokenUsage)
+	assert.Equal(t, 1, modelSummary.MonitoredClusters)
+}
+
+func TestModelDetailCurrentLoadUsesOnlySelectedModelClusters(t *testing.T) {
+	setupClusterServiceTestDB(t)
+	service := testService(t, failingAgentClient{})
+	modelA := createTestModel(t, "model-a", 1)
+	modelB := createTestModel(t, "model-b", 1)
+	now := common.GetTimestamp()
+	clusterA := &model.Cluster{
+		ModelID: modelA.Id, ModelNameSnapshot: modelA.ModelName, Name: "a",
+		Enabled: true, HealthStatus: model.ClusterHealthOnline,
+		CredentialStatus: model.ClusterCredentialActive, LastSuccessAt: now,
+	}
+	clusterB := &model.Cluster{
+		ModelID: modelB.Id, ModelNameSnapshot: modelB.ModelName, Name: "b",
+		Enabled: true, HealthStatus: model.ClusterHealthOnline,
+		CredentialStatus: model.ClusterCredentialActive, LastSuccessAt: now,
+	}
+	require.NoError(t, model.CreateCluster(clusterA))
+	require.NoError(t, model.CreateCluster(clusterB))
+	createLatestTelemetry(t, clusterA, 5, 2, 40, 5000, 4000)
+	createLatestTelemetry(t, clusterB, 20, 10, 200, 1, 1)
+
+	response, err := service.GetModelDetail(modelA.Id)
+
+	require.NoError(t, err)
+	assert.Equal(t, float64(7), response.Summary.CurrentRequests)
+	assert.Equal(t, float64(40), response.Summary.CurrentTokenUsage)
+	assert.Equal(t, 1, response.Summary.MonitoredClusters)
+	assert.Equal(t, 1, response.Summary.RequestsReportingClusters)
+	assert.Equal(t, 1, response.Summary.TokensReportingClusters)
+}
+
+func createLatestTelemetry(
+	t *testing.T,
+	cluster *model.Cluster,
+	running float64,
+	waiting float64,
+	tokenUsage float64,
+	legacyRequests float64,
+	legacyTokens float64,
+) {
+	t.Helper()
+	telemetry := NormalizedTelemetry{
+		Engine: TelemetryEngine{
+			RunningRequests: &running,
+			WaitingRequests: &waiting,
+			TokenUsage:      &tokenUsage,
+		},
+		Metrics: TelemetryAggregateMetrics{
+			Requests: &legacyRequests,
+			Tokens:   &legacyTokens,
+		},
+	}
+	payload, err := common.Marshal(telemetry)
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.ClusterTelemetryLatest{
+		ClusterID:         cluster.ID,
+		SchemaVersion:     "1.0",
+		CollectionID:      cluster.Name,
+		NormalizedPayload: string(payload),
+		CollectedAt:       cluster.LastSuccessAt,
+		UpdatedAt:         cluster.LastSuccessAt,
+	}).Error)
 }
 
 func TestOverviewDoesNotTreatPendingCredentialAsOperationalAlert(t *testing.T) {

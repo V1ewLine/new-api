@@ -295,7 +295,7 @@ const machineConfigs: TelemetryTrendChartConfig[] = [
 export function OverviewTrendCharts(props: TelemetryTrendGroupProps) {
   return (
     <TelemetryTrendGrid
-      clusterId={props.clusterId}
+      scope={{ kind: 'cluster', clusterId: props.clusterId }}
       range={props.range}
       refreshInterval={props.refreshInterval}
       query={props.query}
@@ -307,7 +307,7 @@ export function OverviewTrendCharts(props: TelemetryTrendGroupProps) {
 export function EngineTrendCharts(props: TelemetryTrendGroupProps) {
   return (
     <TelemetryTrendGrid
-      clusterId={props.clusterId}
+      scope={{ kind: 'cluster', clusterId: props.clusterId }}
       range={props.range}
       refreshInterval={props.refreshInterval}
       query={props.query}
@@ -319,7 +319,7 @@ export function EngineTrendCharts(props: TelemetryTrendGroupProps) {
 export function MachineTrendCharts(props: TelemetryTrendGroupProps) {
   return (
     <TelemetryTrendGrid
-      clusterId={props.clusterId}
+      scope={{ kind: 'cluster', clusterId: props.clusterId }}
       range={props.range}
       refreshInterval={props.refreshInterval}
       query={props.query}

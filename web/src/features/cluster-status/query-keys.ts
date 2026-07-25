@@ -40,4 +40,17 @@ export const clusterQueryKeys = {
       ...rangeKey,
       maxPoints,
     ] as const,
+  aggregateTrends: (
+    modelId: number | undefined,
+    rangeKey: readonly (string | number)[],
+    maxPoints: number
+  ) =>
+    [
+      ...clusterQueryKeys.all,
+      modelId ? 'model' : 'overview',
+      modelId ?? 'all',
+      'trends',
+      ...rangeKey,
+      maxPoints,
+    ] as const,
 }

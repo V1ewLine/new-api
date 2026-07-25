@@ -732,11 +732,176 @@ const phase3Translations = {
   },
 }
 
+const currentLoadEnglish = {
+  'Current Load Trends': 'Current Load Trends',
+  'Current Model Load Trends': 'Current Model Load Trends',
+  'Current Requests': 'Current Requests',
+  'Current Requests Trend': 'Current Requests Trend',
+  'Current Token Usage': 'Current Token Usage',
+  'Current Token Usage Trend': 'Current Token Usage Trend',
+  'Current request and token load for this model over the selected time window.':
+    'Current request and token load for this model over the selected time window.',
+  'Global current request and token load over the selected time window.':
+    'Global current request and token load over the selected time window.',
+  'Search and filters apply only to the model list below; summary metrics and trends remain global.':
+    'Search and filters apply only to the model list below; summary metrics and trends remain global.',
+  'Sum of current token usage across reporting clusters.':
+    'Sum of current token usage across reporting clusters.',
+  'Sum of running and waiting requests across reporting clusters.':
+    'Sum of running and waiting requests across reporting clusters.',
+  'Trend points sum only valid samples in each bucket; missing data is shown as a gap.':
+    'Trend points sum only valid samples in each bucket; missing data is shown as a gap.',
+  '{{reporting}}/{{monitored}} monitored clusters reporting':
+    '{{reporting}}/{{monitored}} monitored clusters reporting',
+}
+
+const currentLoadTranslations = {
+  zh: {
+    'Current Load Trends': '当前负载趋势',
+    'Current Model Load Trends': '当前模型负载趋势',
+    'Current Requests': '当前请求数',
+    'Current Requests Trend': '当前请求数趋势',
+    'Current Token Usage': '当前 Token 占用',
+    'Current Token Usage Trend': '当前 Token 占用趋势',
+    'Current request and token load for this model over the selected time window.':
+      '所选时间窗口内该模型的当前请求与 Token 负载。',
+    'Global current request and token load over the selected time window.':
+      '所选时间窗口内所有模型和集群的当前请求与 Token 负载。',
+    'Search and filters apply only to the model list below; summary metrics and trends remain global.':
+      '搜索和筛选仅作用于下方模型列表；汇总指标和趋势始终保持全局口径。',
+    'Sum of current token usage across reporting clusters.':
+      '汇总有数据集群的当前 Token 占用。',
+    'Sum of running and waiting requests across reporting clusters.':
+      '汇总有数据集群的运行中与等待中请求。',
+    'Trend points sum only valid samples in each bucket; missing data is shown as a gap.':
+      '每个时间桶仅汇总有效采样；缺失数据以曲线断点显示。',
+    '{{reporting}}/{{monitored}} monitored clusters reporting':
+      '{{reporting}}/{{monitored}} 个监控中集群有数据',
+  },
+  'zh-TW': {
+    'Current Load Trends': '目前負載趨勢',
+    'Current Model Load Trends': '目前模型負載趨勢',
+    'Current Requests': '目前請求數',
+    'Current Requests Trend': '目前請求數趨勢',
+    'Current Token Usage': '目前 Token 佔用',
+    'Current Token Usage Trend': '目前 Token 佔用趨勢',
+    'Current request and token load for this model over the selected time window.':
+      '所選時間範圍內此模型目前的請求與 Token 負載。',
+    'Global current request and token load over the selected time window.':
+      '所選時間範圍內所有模型與叢集目前的請求與 Token 負載。',
+    'Search and filters apply only to the model list below; summary metrics and trends remain global.':
+      '搜尋與篩選僅套用至下方模型清單；摘要指標與趨勢維持全域範圍。',
+    'Sum of current token usage across reporting clusters.':
+      '加總有資料叢集目前的 Token 佔用。',
+    'Sum of running and waiting requests across reporting clusters.':
+      '加總有資料叢集執行中與等待中的請求。',
+    'Trend points sum only valid samples in each bucket; missing data is shown as a gap.':
+      '每個時間桶只加總有效採樣；缺少資料時以曲線斷點顯示。',
+    '{{reporting}}/{{monitored}} monitored clusters reporting':
+      '{{reporting}}/{{monitored}} 個監控中叢集有資料',
+  },
+  fr: {
+    'Current Load Trends': 'Tendances de charge actuelle',
+    'Current Model Load Trends': 'Tendances de charge actuelle du modèle',
+    'Current Requests': 'Requêtes actuelles',
+    'Current Requests Trend': 'Tendance des requêtes actuelles',
+    'Current Token Usage': 'Utilisation actuelle des jetons',
+    'Current Token Usage Trend':
+      "Tendance de l'utilisation actuelle des jetons",
+    'Current request and token load for this model over the selected time window.':
+      'Charge actuelle des requêtes et des jetons de ce modèle sur la période sélectionnée.',
+    'Global current request and token load over the selected time window.':
+      'Charge globale actuelle des requêtes et des jetons sur la période sélectionnée.',
+    'Search and filters apply only to the model list below; summary metrics and trends remain global.':
+      'La recherche et les filtres ne concernent que la liste des modèles ci-dessous ; les indicateurs et tendances restent globaux.',
+    'Sum of current token usage across reporting clusters.':
+      "Somme de l'utilisation actuelle des jetons des clusters transmettant des données.",
+    'Sum of running and waiting requests across reporting clusters.':
+      'Somme des requêtes en cours et en attente des clusters transmettant des données.',
+    'Trend points sum only valid samples in each bucket; missing data is shown as a gap.':
+      'Chaque point additionne uniquement les échantillons valides ; les données manquantes apparaissent comme une interruption.',
+    '{{reporting}}/{{monitored}} monitored clusters reporting':
+      '{{reporting}}/{{monitored}} clusters surveillés transmettent des données',
+  },
+  ja: {
+    'Current Load Trends': '現在の負荷トレンド',
+    'Current Model Load Trends': '現在のモデル負荷トレンド',
+    'Current Requests': '現在のリクエスト数',
+    'Current Requests Trend': '現在のリクエスト数の推移',
+    'Current Token Usage': '現在のトークン使用量',
+    'Current Token Usage Trend': '現在のトークン使用量の推移',
+    'Current request and token load for this model over the selected time window.':
+      '選択した時間範囲における、このモデルの現在のリクエストとトークン負荷です。',
+    'Global current request and token load over the selected time window.':
+      '選択した時間範囲における、全体の現在のリクエストとトークン負荷です。',
+    'Search and filters apply only to the model list below; summary metrics and trends remain global.':
+      '検索とフィルターは下のモデル一覧だけに適用され、概要指標とトレンドは全体値のままです。',
+    'Sum of current token usage across reporting clusters.':
+      'データを報告しているクラスターの現在のトークン使用量の合計です。',
+    'Sum of running and waiting requests across reporting clusters.':
+      'データを報告しているクラスターの実行中および待機中リクエストの合計です。',
+    'Trend points sum only valid samples in each bucket; missing data is shown as a gap.':
+      '各時間バケットでは有効なサンプルのみを合計し、欠損データは線の切れ目で表示します。',
+    '{{reporting}}/{{monitored}} monitored clusters reporting':
+      '{{reporting}}/{{monitored}} 個の監視中クラスターが報告中',
+  },
+  ru: {
+    'Current Load Trends': 'Тренды текущей нагрузки',
+    'Current Model Load Trends': 'Тренды текущей нагрузки модели',
+    'Current Requests': 'Текущие запросы',
+    'Current Requests Trend': 'Тренд текущих запросов',
+    'Current Token Usage': 'Текущее использование токенов',
+    'Current Token Usage Trend': 'Тренд текущего использования токенов',
+    'Current request and token load for this model over the selected time window.':
+      'Текущая нагрузка запросов и токенов этой модели за выбранный период.',
+    'Global current request and token load over the selected time window.':
+      'Общая текущая нагрузка запросов и токенов за выбранный период.',
+    'Search and filters apply only to the model list below; summary metrics and trends remain global.':
+      'Поиск и фильтры применяются только к списку моделей ниже; сводные показатели и тренды остаются общими.',
+    'Sum of current token usage across reporting clusters.':
+      'Сумма текущего использования токенов по кластерам, передающим данные.',
+    'Sum of running and waiting requests across reporting clusters.':
+      'Сумма выполняющихся и ожидающих запросов по кластерам, передающим данные.',
+    'Trend points sum only valid samples in each bucket; missing data is shown as a gap.':
+      'В каждом временном интервале суммируются только корректные выборки; пропуски данных отображаются разрывами.',
+    '{{reporting}}/{{monitored}} monitored clusters reporting':
+      '{{reporting}} из {{monitored}} отслеживаемых кластеров передают данные',
+  },
+  vi: {
+    'Current Load Trends': 'Xu hướng tải hiện tại',
+    'Current Model Load Trends': 'Xu hướng tải hiện tại của mô hình',
+    'Current Requests': 'Yêu cầu hiện tại',
+    'Current Requests Trend': 'Xu hướng yêu cầu hiện tại',
+    'Current Token Usage': 'Mức sử dụng token hiện tại',
+    'Current Token Usage Trend': 'Xu hướng sử dụng token hiện tại',
+    'Current request and token load for this model over the selected time window.':
+      'Tải yêu cầu và token hiện tại của mô hình này trong khoảng thời gian đã chọn.',
+    'Global current request and token load over the selected time window.':
+      'Tải yêu cầu và token hiện tại trên toàn hệ thống trong khoảng thời gian đã chọn.',
+    'Search and filters apply only to the model list below; summary metrics and trends remain global.':
+      'Tìm kiếm và bộ lọc chỉ áp dụng cho danh sách mô hình bên dưới; số liệu tổng hợp và xu hướng vẫn ở phạm vi toàn hệ thống.',
+    'Sum of current token usage across reporting clusters.':
+      'Tổng mức sử dụng token hiện tại của các cụm đang báo cáo.',
+    'Sum of running and waiting requests across reporting clusters.':
+      'Tổng số yêu cầu đang chạy và đang chờ của các cụm đang báo cáo.',
+    'Trend points sum only valid samples in each bucket; missing data is shown as a gap.':
+      'Mỗi điểm xu hướng chỉ cộng các mẫu hợp lệ trong khoảng; dữ liệu thiếu được hiển thị bằng đoạn ngắt.',
+    '{{reporting}}/{{monitored}} monitored clusters reporting':
+      '{{reporting}}/{{monitored}} cụm đang giám sát có dữ liệu',
+  },
+}
+
 const newKeys = {
-  en: { ...english, ...phase2English, ...phase3English },
+  en: {
+    ...english,
+    ...phase2English,
+    ...phase3English,
+    ...currentLoadEnglish,
+  },
   zh: {
     ...phase2Translations.zh,
     ...phase3Translations.zh,
+    ...currentLoadTranslations.zh,
     'Cluster data exported': '集群数据已导出',
     'Cluster list (CSV)': '集群列表（CSV）',
     'Complete cluster snapshot (ZIP)': '完整集群快照（ZIP）',
@@ -767,11 +932,32 @@ const newKeys = {
     ...english,
     ...phase2Translations['zh-TW'],
     ...phase3Translations['zh-TW'],
+    ...currentLoadTranslations['zh-TW'],
   },
-  fr: { ...english, ...phase2Translations.fr, ...phase3Translations.fr },
-  ja: { ...english, ...phase2Translations.ja, ...phase3Translations.ja },
-  ru: { ...english, ...phase2Translations.ru, ...phase3Translations.ru },
-  vi: { ...english, ...phase2Translations.vi, ...phase3Translations.vi },
+  fr: {
+    ...english,
+    ...phase2Translations.fr,
+    ...phase3Translations.fr,
+    ...currentLoadTranslations.fr,
+  },
+  ja: {
+    ...english,
+    ...phase2Translations.ja,
+    ...phase3Translations.ja,
+    ...currentLoadTranslations.ja,
+  },
+  ru: {
+    ...english,
+    ...phase2Translations.ru,
+    ...phase3Translations.ru,
+    ...currentLoadTranslations.ru,
+  },
+  vi: {
+    ...english,
+    ...phase2Translations.vi,
+    ...phase3Translations.vi,
+    ...currentLoadTranslations.vi,
+  },
 }
 
 async function main() {

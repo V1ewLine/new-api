@@ -149,6 +149,13 @@ export type ModelClusterSummary = {
   cluster_count: number
   online_count: number
   abnormal_count: number
+  current_requests: number
+  current_token_usage: number
+  current_requests_available: boolean
+  current_token_usage_available: boolean
+  requests_reporting_clusters: number
+  tokens_reporting_clusters: number
+  monitored_clusters: number
   total_requests: number
   total_tokens: number
   requests_available: boolean
@@ -161,6 +168,13 @@ export type ClusterOverview = {
     total_clusters: number
     online_clusters: number
     abnormal_clusters: number
+    current_requests: number
+    current_token_usage: number
+    current_requests_available: boolean
+    current_token_usage_available: boolean
+    requests_reporting_clusters: number
+    tokens_reporting_clusters: number
+    monitored_clusters: number
     total_requests: number
     total_tokens: number
     requests_available: boolean
@@ -264,6 +278,11 @@ export type TelemetryTrendPoint = {
   gpu_board_power_watts?: number
   cpu_utilization_percent?: number
   memory_utilization_percent?: number
+  current_requests?: number
+  current_token_usage?: number
+  requests_reporting_clusters?: number
+  tokens_reporting_clusters?: number
+  monitored_clusters?: number
   gpus: TelemetryTrendGPUPoint[]
 }
 
@@ -274,6 +293,7 @@ export type TelemetryTrendResponse = {
   retention_days: number
   bucket_seconds: number
   sample_count: number
+  monitored_clusters?: number
   points: TelemetryTrendPoint[]
 }
 

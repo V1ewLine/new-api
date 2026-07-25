@@ -16,7 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { InformationCircleIcon } from '@hugeicons/core-free-icons'
+import {
+  Add01Icon,
+  Download04Icon,
+  InformationCircleIcon,
+  Refresh01Icon,
+} from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
@@ -36,6 +41,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
 import { useDebounce } from '@/hooks/use-debounce'
 
 import {
@@ -44,10 +50,16 @@ import {
   refreshCluster,
 } from './api'
 import { AddClusterDialog } from './components/add-cluster-dialog'
+import { AggregateLoadTrends } from './components/aggregate-load-trends'
 import { ClusterExportDialog } from './components/cluster-export-dialog'
 import { OverviewContent } from './components/overview-content'
 import { OverviewToolbar } from './components/overview-toolbar'
 import { useClusterRefreshInterval } from './hooks/use-cluster-refresh-interval'
+import { useTelemetryTrends } from './hooks/use-cluster-telemetry-trends'
+import {
+  trendRangeFromRouteSearch,
+  trendRangeToRouteSearch,
+} from './lib/route-state'
 import { clusterQueryKeys } from './query-keys'
 import type { ClusterHealthStatus } from './types'
 
@@ -100,6 +112,7 @@ export function ClusterStatus() {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const refreshInterval = useClusterRefreshInterval()
+  const trendRange = trendRangeFromRouteSearch(routeSearch)
   const params = {
     search: debouncedSearch || undefined,
     model_id: modelId || undefined,
@@ -127,6 +140,11 @@ export function ClusterStatus() {
       }
       return response.data ?? []
     },
+  })
+  const trendQuery = useTelemetryTrends({
+    scope: { kind: 'overview' },
+    range: trendRange,
+    refreshInterval,
   })
   const refreshMutation = useMutation({
     mutationFn: async (clusterId: number) => {
@@ -161,46 +179,58 @@ export function ClusterStatus() {
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Cluster Status')}</SectionPageLayout.Title>
+      <SectionPageLayout.Actions>
+        <Button variant='outline' onClick={() => setExportDialogOpen(true)}>
+          <HugeiconsIcon
+            icon={Download04Icon}
+            strokeWidth={2}
+            data-icon='inline-start'
+          />
+          {t('Export')}
+        </Button>
+        <Button
+          variant='outline'
+          onClick={() => {
+            void Promise.all([
+              overviewQuery.refetch(),
+              modelOptionsQuery.refetch(),
+              trendQuery.refetch(),
+            ])
+          }}
+          disabled={
+            overviewQuery.isFetching ||
+            modelOptionsQuery.isFetching ||
+            trendQuery.isFetching
+          }
+        >
+          {overviewQuery.isFetching ||
+          modelOptionsQuery.isFetching ||
+          trendQuery.isFetching ? (
+            <Spinner data-icon='inline-start' />
+          ) : (
+            <HugeiconsIcon
+              icon={Refresh01Icon}
+              strokeWidth={2}
+              data-icon='inline-start'
+            />
+          )}
+          {overviewQuery.isFetching ||
+          modelOptionsQuery.isFetching ||
+          trendQuery.isFetching
+            ? t('Refreshing...')
+            : t('Refresh')}
+        </Button>
+        <Button onClick={() => setAddDialogOpen(true)}>
+          <HugeiconsIcon
+            icon={Add01Icon}
+            strokeWidth={2}
+            data-icon='inline-start'
+          />
+          {t('Add Cluster')}
+        </Button>
+      </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         <div className='flex flex-col gap-4'>
-          <OverviewToolbar
-            search={search}
-            onSearchChange={updateSearch}
-            modelId={modelId}
-            onModelIdChange={(value) => {
-              navigate({
-                search: (previous) => ({
-                  ...previous,
-                  model: value || undefined,
-                  page: undefined,
-                }),
-              })
-            }}
-            status={status}
-            onStatusChange={(value) => {
-              navigate({
-                search: (previous) => ({
-                  ...previous,
-                  status: value || undefined,
-                  page: undefined,
-                }),
-              })
-            }}
-            modelOptions={modelOptionsQuery.data ?? []}
-            onExport={() => setExportDialogOpen(true)}
-            onAddCluster={() => setAddDialogOpen(true)}
-            onRefresh={() => {
-              void Promise.all([
-                overviewQuery.refetch(),
-                modelOptionsQuery.refetch(),
-              ])
-            }}
-            refreshing={
-              (overviewQuery.isFetching && !overviewQuery.isLoading) ||
-              modelOptionsQuery.isFetching
-            }
-          />
-
           {overviewQuery.isLoading ? <ClusterOverviewSkeleton /> : null}
           {overviewQuery.isError ? (
             <Card>
@@ -262,6 +292,54 @@ export function ClusterStatus() {
                   }),
                 })
               }}
+              afterSummary={
+                <AggregateLoadTrends
+                  title={t('Current Load Trends')}
+                  description={t(
+                    'Global current request and token load over the selected time window.'
+                  )}
+                  scope={{ kind: 'overview' }}
+                  range={trendRange}
+                  onRangeChange={(value) => {
+                    navigate({
+                      replace: true,
+                      search: (previous) => ({
+                        ...previous,
+                        ...trendRangeToRouteSearch(value),
+                      }),
+                    })
+                  }}
+                  refreshInterval={refreshInterval}
+                  query={trendQuery}
+                />
+              }
+              toolbar={
+                <OverviewToolbar
+                  search={search}
+                  onSearchChange={updateSearch}
+                  modelId={modelId}
+                  onModelIdChange={(value) => {
+                    navigate({
+                      search: (previous) => ({
+                        ...previous,
+                        model: value || undefined,
+                        page: undefined,
+                      }),
+                    })
+                  }}
+                  status={status}
+                  onStatusChange={(value) => {
+                    navigate({
+                      search: (previous) => ({
+                        ...previous,
+                        status: value || undefined,
+                        page: undefined,
+                      }),
+                    })
+                  }}
+                  modelOptions={modelOptionsQuery.data ?? []}
+                />
+              }
             />
           ) : null}
         </div>

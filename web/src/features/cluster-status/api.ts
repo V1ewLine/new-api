@@ -156,6 +156,20 @@ export async function getClusterTelemetryTrends(
   return response.data
 }
 
+export async function getAggregateClusterTelemetryTrends(
+  modelId: number | undefined,
+  params: TelemetryTrendParams
+) {
+  const path = modelId
+    ? `/api/clusters/models/${modelId}/telemetry/trends`
+    : '/api/clusters/telemetry/trends'
+  const response = await api.get<ApiResponse<TelemetryTrendResponse>>(path, {
+    params,
+    disableDuplicate: true,
+  })
+  return response.data
+}
+
 export async function refreshCluster(clusterId: number) {
   const response = await api.post<ApiResponse<Cluster>>(
     `/api/clusters/${clusterId}/refresh`

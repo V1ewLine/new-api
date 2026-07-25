@@ -123,6 +123,72 @@ func TestGetTelemetryTrendsValidatesClusterRangeAndPointLimit(t *testing.T) {
 	}
 }
 
+func TestGetAggregateTelemetryTrendsSumsCurrentLoadAndPreservesGaps(t *testing.T) {
+	setupClusterServiceTestDB(t)
+	previousRetention := common.ClusterTelemetryRetentionDays
+	common.ClusterTelemetryRetentionDays = 7
+	t.Cleanup(func() {
+		common.ClusterTelemetryRetentionDays = previousRetention
+	})
+	linkedModel := createTestModel(t, "model-a", 1)
+	clusters := []*model.Cluster{
+		{
+			ModelID: linkedModel.Id, ModelNameSnapshot: linkedModel.ModelName, Name: "a",
+			Enabled: true, CredentialStatus: model.ClusterCredentialActive,
+		},
+		{
+			ModelID: linkedModel.Id, ModelNameSnapshot: linkedModel.ModelName, Name: "b",
+			Enabled: true, CredentialStatus: model.ClusterCredentialActive,
+		},
+		{
+			ModelID: linkedModel.Id, ModelNameSnapshot: linkedModel.ModelName, Name: "pending",
+			Enabled: true, CredentialStatus: model.ClusterCredentialPending,
+		},
+	}
+	for _, cluster := range clusters {
+		require.NoError(t, model.CreateCluster(cluster))
+	}
+	startUnix := int64(1_700_000_000)
+	createTrendSample(t, clusters[0].ID, startUnix+1, ClusterTelemetrySampleFixture{
+		RunningRequests: 3, WaitingRequests: 2, TokenUsage: 50,
+	})
+	createTrendSample(t, clusters[1].ID, startUnix+2, ClusterTelemetrySampleFixture{
+		RunningRequests: 4, WaitingRequests: 1, TokenUsage: 70,
+	})
+	createTrendSample(t, clusters[2].ID, startUnix+2, ClusterTelemetrySampleFixture{
+		RunningRequests: 100, WaitingRequests: 100, TokenUsage: 1000,
+	})
+	createTrendSample(t, clusters[0].ID, startUnix+11, ClusterTelemetrySampleFixture{
+		RunningRequests: 6, WaitingRequests: 1, TokenUsage: 90,
+	})
+
+	response, err := testService(t, failingAgentClient{}).GetAggregateTelemetryTrends(
+		context.Background(),
+		AggregateTelemetryTrendInput{
+			ModelID:   linkedModel.Id,
+			StartAt:   time.Unix(startUnix, 0),
+			EndAt:     time.Unix(startUnix+20, 0),
+			MaxPoints: 4,
+		},
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, response.MonitoredClusters)
+	assert.Equal(t, int64(5), response.BucketSeconds)
+	require.Len(t, response.Points, 4)
+	require.NotNil(t, response.Points[0].CurrentRequests)
+	assert.Equal(t, float64(10), *response.Points[0].CurrentRequests)
+	require.NotNil(t, response.Points[0].CurrentTokenUsage)
+	assert.Equal(t, float64(120), *response.Points[0].CurrentTokenUsage)
+	assert.Equal(t, 2, response.Points[0].RequestsReportingClusters)
+	assert.Equal(t, 2, response.Points[0].TokensReportingClusters)
+	assert.Nil(t, response.Points[1].CurrentRequests)
+	assert.Nil(t, response.Points[1].CurrentTokenUsage)
+	require.NotNil(t, response.Points[2].CurrentRequests)
+	assert.Equal(t, float64(7), *response.Points[2].CurrentRequests)
+	assert.Equal(t, 1, response.Points[2].RequestsReportingClusters)
+}
+
 type ClusterTelemetrySampleFixture struct {
 	RunningRequests     float64
 	WaitingRequests     float64

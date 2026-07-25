@@ -363,23 +363,9 @@ func GetClusterTelemetryTrends(c *gin.Context) {
 	if !ok {
 		return
 	}
-	startAt, err := time.Parse(time.RFC3339, strings.TrimSpace(c.Query("start_at")))
-	if err != nil {
-		common.ApiErrorMsg(c, "invalid start_at")
+	startAt, endAt, maxPoints, ok := requireClusterTrendRange(c)
+	if !ok {
 		return
-	}
-	endAt, err := time.Parse(time.RFC3339, strings.TrimSpace(c.Query("end_at")))
-	if err != nil {
-		common.ApiErrorMsg(c, "invalid end_at")
-		return
-	}
-	maxPoints := 0
-	if rawMaxPoints := strings.TrimSpace(c.Query("max_points")); rawMaxPoints != "" {
-		maxPoints, err = strconv.Atoi(rawMaxPoints)
-		if err != nil {
-			common.ApiErrorMsg(c, "invalid max_points")
-			return
-		}
 	}
 	service, err := clusterstatus.DefaultService()
 	if err != nil {
@@ -398,6 +384,68 @@ func GetClusterTelemetryTrends(c *gin.Context) {
 	}
 	c.Header("Cache-Control", "no-store")
 	common.ApiSuccess(c, trends)
+}
+
+func GetClusterAggregateTelemetryTrends(c *gin.Context) {
+	getClusterAggregateTelemetryTrends(c, 0)
+}
+
+func GetClusterModelTelemetryTrends(c *gin.Context) {
+	modelID, err := strconv.Atoi(c.Param("modelId"))
+	if err != nil || modelID <= 0 {
+		common.ApiErrorMsg(c, "invalid model id")
+		return
+	}
+	getClusterAggregateTelemetryTrends(c, modelID)
+}
+
+func getClusterAggregateTelemetryTrends(c *gin.Context, modelID int) {
+	startAt, endAt, maxPoints, ok := requireClusterTrendRange(c)
+	if !ok {
+		return
+	}
+	service, err := clusterstatus.DefaultService()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	trends, err := service.GetAggregateTelemetryTrends(
+		c.Request.Context(),
+		clusterstatus.AggregateTelemetryTrendInput{
+			ModelID:   modelID,
+			StartAt:   startAt,
+			EndAt:     endAt,
+			MaxPoints: maxPoints,
+		},
+	)
+	if err != nil {
+		writeClusterServiceError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	common.ApiSuccess(c, trends)
+}
+
+func requireClusterTrendRange(c *gin.Context) (time.Time, time.Time, int, bool) {
+	startAt, err := time.Parse(time.RFC3339, strings.TrimSpace(c.Query("start_at")))
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid start_at")
+		return time.Time{}, time.Time{}, 0, false
+	}
+	endAt, err := time.Parse(time.RFC3339, strings.TrimSpace(c.Query("end_at")))
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid end_at")
+		return time.Time{}, time.Time{}, 0, false
+	}
+	maxPoints := 0
+	if rawMaxPoints := strings.TrimSpace(c.Query("max_points")); rawMaxPoints != "" {
+		maxPoints, err = strconv.Atoi(rawMaxPoints)
+		if err != nil {
+			common.ApiErrorMsg(c, "invalid max_points")
+			return time.Time{}, time.Time{}, 0, false
+		}
+	}
+	return startAt, endAt, maxPoints, true
 }
 
 func requireClusterID(c *gin.Context) (int64, bool) {

@@ -20,6 +20,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import z from 'zod'
 
 import { ClusterStatus } from '@/features/cluster-status'
+import { TELEMETRY_TREND_ROUTE_RANGES } from '@/features/cluster-status/lib/route-state'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -36,6 +37,9 @@ const clusterStatusSearchSchema = z.object({
     .refine((value) => [10, 20, 50].includes(value))
     .optional()
     .catch(10),
+  range: z.enum(TELEMETRY_TREND_ROUTE_RANGES).optional().catch('1h'),
+  start: z.string().optional().catch(undefined),
+  end: z.string().optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/_authenticated/cluster-status/')({
