@@ -58,7 +58,11 @@ import {
   getClusterModelOptions,
   verifyClusterCredential,
 } from '../api'
-import { clusterFormSchema, type ClusterFormValues } from '../lib/cluster-form'
+import {
+  clusterFormDefaultValues,
+  clusterFormSchema,
+  type ClusterFormValues,
+} from '../lib/cluster-form'
 import { normalizeAgentAddress } from '../lib/connection'
 import { clusterQueryKeys } from '../query-keys'
 import type {
@@ -71,6 +75,7 @@ import { ModelSelector } from './model-selector'
 type AddClusterDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  initialModelId?: number
 }
 
 export function AddClusterDialog(props: AddClusterDialogProps) {
@@ -84,11 +89,7 @@ export function AddClusterDialog(props: AddClusterDialogProps) {
   const [closeConfirmationOpen, setCloseConfirmationOpen] = useState(false)
   const form = useForm<ClusterFormValues>({
     resolver: zodResolver(clusterFormSchema),
-    defaultValues: {
-      modelId: 0,
-      name: '',
-      agentAddress: '',
-    },
+    defaultValues: clusterFormDefaultValues(props.initialModelId),
   })
   const optionsQuery = useQuery({
     queryKey: clusterQueryKeys.modelOptions(),
@@ -169,17 +170,23 @@ export function AddClusterDialog(props: AddClusterDialogProps) {
 
   useEffect(() => {
     if (!props.open) {
-      form.reset()
+      form.reset(clusterFormDefaultValues(props.initialModelId))
       setIssuedCredential(undefined)
       setVerification(undefined)
       setCloseConfirmationOpen(false)
       resetCreateMutation()
       resetVerifyMutation()
     }
-  }, [form, props.open, resetCreateMutation, resetVerifyMutation])
+  }, [
+    form,
+    props.initialModelId,
+    props.open,
+    resetCreateMutation,
+    resetVerifyMutation,
+  ])
 
   function closeDialog() {
-    form.reset()
+    form.reset(clusterFormDefaultValues(props.initialModelId))
     setIssuedCredential(undefined)
     setVerification(undefined)
     setCloseConfirmationOpen(false)

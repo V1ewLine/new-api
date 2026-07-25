@@ -378,6 +378,33 @@ func TestOverviewDoesNotTreatPendingCredentialAsOperationalAlert(t *testing.T) {
 	assert.Equal(t, model.ClusterHealthUnknown, response.ModelGroups[0].Models[0].HealthStatus)
 }
 
+func TestOverviewAlertIncludesPollingFreshnessAndFailureCount(t *testing.T) {
+	setupClusterServiceTestDB(t)
+	service := testService(t, failingAgentClient{})
+	linkedModel := createTestModel(t, "model-a", 1)
+	cluster := &model.Cluster{
+		ModelID:             linkedModel.Id,
+		ModelNameSnapshot:   linkedModel.ModelName,
+		Name:                "failed-cluster",
+		Enabled:             true,
+		HealthStatus:        model.ClusterHealthOffline,
+		CredentialStatus:    model.ClusterCredentialActive,
+		LastErrorCode:       "AGENT_TIMEOUT",
+		LastPolledAt:        300,
+		LastSuccessAt:       200,
+		ConsecutiveFailures: 3,
+	}
+	require.NoError(t, model.CreateCluster(cluster))
+
+	response, err := service.GetOverview("", 0, "", 1, 10)
+
+	require.NoError(t, err)
+	require.Len(t, response.Alerts, 1)
+	assert.Equal(t, int64(300), response.Alerts[0].LastPolledAt)
+	assert.Equal(t, int64(200), response.Alerts[0].LastSuccessAt)
+	assert.Equal(t, 3, response.Alerts[0].ConsecutiveFailures)
+}
+
 func TestPollClusterPersistsConsecutiveFailuresAndBackoff(t *testing.T) {
 	setupClusterServiceTestDB(t)
 	service := testService(t, failingAgentClient{})

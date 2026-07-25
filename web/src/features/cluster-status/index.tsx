@@ -18,9 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { InformationCircleIcon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { getRouteApi } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
@@ -36,7 +38,11 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { useDebounce } from '@/hooks/use-debounce'
 
-import { getClusterModelOptions, getClusterOverview } from './api'
+import {
+  getClusterModelOptions,
+  getClusterOverview,
+  refreshCluster,
+} from './api'
 import { AddClusterDialog } from './components/add-cluster-dialog'
 import { ClusterExportDialog } from './components/cluster-export-dialog'
 import { OverviewContent } from './components/overview-content'
@@ -44,6 +50,8 @@ import { OverviewToolbar } from './components/overview-toolbar'
 import { useClusterRefreshInterval } from './hooks/use-cluster-refresh-interval'
 import { clusterQueryKeys } from './query-keys'
 import type { ClusterHealthStatus } from './types'
+
+const route = getRouteApi('/_authenticated/cluster-status/')
 
 function ClusterOverviewSkeleton() {
   return (
@@ -80,12 +88,15 @@ function ClusterOverviewSkeleton() {
 
 export function ClusterStatus() {
   const { t } = useTranslation()
-  const [search, setSearch] = useState('')
+  const queryClient = useQueryClient()
+  const routeSearch = route.useSearch()
+  const navigate = route.useNavigate()
+  const search = routeSearch.q ?? ''
   const debouncedSearch = useDebounce(search, 300)
-  const [modelId, setModelId] = useState(0)
-  const [status, setStatus] = useState<ClusterHealthStatus | ''>('')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const modelId = routeSearch.model ?? 0
+  const status = (routeSearch.status ?? '') as ClusterHealthStatus | ''
+  const page = routeSearch.page ?? 1
+  const pageSize = routeSearch.pageSize ?? 10
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const refreshInterval = useClusterRefreshInterval()
@@ -117,10 +128,34 @@ export function ClusterStatus() {
       return response.data ?? []
     },
   })
+  const refreshMutation = useMutation({
+    mutationFn: async (clusterId: number) => {
+      const response = await refreshCluster(clusterId)
+      if (!response.success || !response.data) {
+        throw new Error(response.message || t('Failed to refresh cluster'))
+      }
+      return response.data
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: clusterQueryKeys.all })
+      toast.success(t('Cluster refreshed successfully'))
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to refresh cluster')
+      )
+    },
+  })
 
   function updateSearch(value: string) {
-    setSearch(value)
-    setPage(1)
+    navigate({
+      replace: true,
+      search: (previous) => ({
+        ...previous,
+        q: value || undefined,
+        page: undefined,
+      }),
+    })
   }
 
   return (
@@ -133,18 +168,37 @@ export function ClusterStatus() {
             onSearchChange={updateSearch}
             modelId={modelId}
             onModelIdChange={(value) => {
-              setModelId(value)
-              setPage(1)
+              navigate({
+                search: (previous) => ({
+                  ...previous,
+                  model: value || undefined,
+                  page: undefined,
+                }),
+              })
             }}
             status={status}
             onStatusChange={(value) => {
-              setStatus(value)
-              setPage(1)
+              navigate({
+                search: (previous) => ({
+                  ...previous,
+                  status: value || undefined,
+                  page: undefined,
+                }),
+              })
             }}
             modelOptions={modelOptionsQuery.data ?? []}
             onExport={() => setExportDialogOpen(true)}
             onAddCluster={() => setAddDialogOpen(true)}
-            refreshing={overviewQuery.isFetching && !overviewQuery.isLoading}
+            onRefresh={() => {
+              void Promise.all([
+                overviewQuery.refetch(),
+                modelOptionsQuery.refetch(),
+              ])
+            }}
+            refreshing={
+              (overviewQuery.isFetching && !overviewQuery.isLoading) ||
+              modelOptionsQuery.isFetching
+            }
           />
 
           {overviewQuery.isLoading ? <ClusterOverviewSkeleton /> : null}
@@ -183,10 +237,30 @@ export function ClusterStatus() {
           {overviewQuery.data ? (
             <OverviewContent
               data={overviewQuery.data}
-              onPageChange={setPage}
+              refreshInterval={refreshInterval}
+              retryingClusterId={
+                refreshMutation.isPending
+                  ? (refreshMutation.variables ?? null)
+                  : null
+              }
+              onRetryCluster={(clusterId) => refreshMutation.mutate(clusterId)}
+              onAddCluster={() => setAddDialogOpen(true)}
+              onPageChange={(value) =>
+                navigate({
+                  search: (previous) => ({
+                    ...previous,
+                    page: value === 1 ? undefined : value,
+                  }),
+                })
+              }
               onPageSizeChange={(value) => {
-                setPageSize(value)
-                setPage(1)
+                navigate({
+                  search: (previous) => ({
+                    ...previous,
+                    pageSize: value,
+                    page: undefined,
+                  }),
+                })
               }}
             />
           ) : null}
@@ -200,7 +274,7 @@ export function ClusterStatus() {
           open={exportDialogOpen}
           onOpenChange={setExportDialogOpen}
           context='overview'
-          search={search || undefined}
+          search={debouncedSearch || undefined}
           modelId={modelId || undefined}
           status={status || undefined}
         />

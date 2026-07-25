@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/card'
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -47,18 +48,21 @@ import {
 } from '@/components/ui/empty'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Progress } from '@/components/ui/progress'
+import { Spinner } from '@/components/ui/spinner'
 
-import {
-  formatCompactNumber,
-  formatTimestamp,
-  getVisiblePages,
-} from '../lib/format'
+import { formatCompactNumber, getVisiblePages } from '../lib/format'
+import { getClusterPollErrorPresentation } from '../lib/poll-error'
 import type { ClusterOverview, ModelClusterSummary } from '../types'
 import { ModelAvatar } from './model-avatar'
 import { ClusterStatusBadge } from './status-badge'
+import { TelemetryFreshness } from './telemetry-freshness'
 
 type OverviewContentProps = {
   data: ClusterOverview
+  refreshInterval: number
+  retryingClusterId: number | null
+  onRetryCluster: (clusterId: number) => void
+  onAddCluster: () => void
   onPageChange: (page: number) => void
   onPageSizeChange: (pageSize: number) => void
 }
@@ -293,6 +297,11 @@ export function OverviewContent(props: OverviewContentProps) {
                       {t('Add a cluster or adjust the current filters.')}
                     </EmptyDescription>
                   </EmptyHeader>
+                  <EmptyContent>
+                    <Button onClick={props.onAddCluster}>
+                      {t('Add Cluster')}
+                    </Button>
+                  </EmptyContent>
                 </Empty>
               </CardContent>
             </Card>
@@ -335,30 +344,85 @@ export function OverviewContent(props: OverviewContentProps) {
                   </EmptyHeader>
                 </Empty>
               ) : (
-                props.data.alerts.map((alert) => (
-                  <div
-                    key={alert.cluster_id}
-                    className='flex flex-col gap-2 rounded-lg border p-3'
-                  >
-                    <div className='flex items-center justify-between gap-2'>
-                      <span className='truncate font-medium'>
-                        {alert.cluster_name}
-                      </span>
-                      <ClusterStatusBadge status={alert.health_status} />
+                props.data.alerts.map((alert) => {
+                  const error = getClusterPollErrorPresentation(
+                    alert.error_code
+                  )
+                  const retrying = props.retryingClusterId === alert.cluster_id
+                  return (
+                    <div
+                      key={alert.cluster_id}
+                      className='flex flex-col gap-3 rounded-lg border p-3'
+                    >
+                      <div className='flex items-center justify-between gap-2'>
+                        <span className='truncate font-medium'>
+                          {alert.cluster_name}
+                        </span>
+                        <ClusterStatusBadge status={alert.health_status} />
+                      </div>
+                      <div>
+                        <div className='text-sm font-medium'>
+                          {t(error.title)}
+                        </div>
+                        <div className='text-muted-foreground mt-1 text-xs'>
+                          {t(error.description)}
+                        </div>
+                      </div>
+                      <div className='text-muted-foreground truncate text-xs'>
+                        {alert.model_name}
+                      </div>
+                      {alert.error_code ? (
+                        <code className='text-destructive truncate text-xs'>
+                          {alert.error_code}
+                        </code>
+                      ) : null}
+                      {alert.consecutive_failures > 0 ? (
+                        <div className='text-muted-foreground text-xs'>
+                          {t('Failed {{count}} times in a row', {
+                            count: alert.consecutive_failures,
+                          })}
+                        </div>
+                      ) : null}
+                      <TelemetryFreshness
+                        lastSuccessAt={alert.last_success_at}
+                        lastPolledAt={alert.last_polled_at}
+                        refreshInterval={props.refreshInterval}
+                        showLastAttempt
+                      />
+                      <div className='flex flex-wrap gap-2'>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          nativeButton={false}
+                          render={
+                            <Link
+                              to='/cluster-status/$clusterId'
+                              params={{
+                                clusterId: String(alert.cluster_id),
+                              }}
+                            />
+                          }
+                        >
+                          {t('View Details')}
+                        </Button>
+                        {error.retryable ? (
+                          <Button
+                            size='sm'
+                            onClick={() =>
+                              props.onRetryCluster(alert.cluster_id)
+                            }
+                            disabled={props.retryingClusterId !== null}
+                          >
+                            {retrying ? (
+                              <Spinner data-icon='inline-start' />
+                            ) : null}
+                            {retrying ? t('Retrying...') : t('Retry now')}
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
-                    <div className='text-muted-foreground truncate text-xs'>
-                      {alert.model_name}
-                    </div>
-                    {alert.error_code ? (
-                      <code className='text-destructive truncate text-xs'>
-                        {alert.error_code}
-                      </code>
-                    ) : null}
-                    <div className='text-muted-foreground text-xs'>
-                      {formatTimestamp(alert.last_polled_at)}
-                    </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </CardContent>
           </Card>

@@ -224,12 +224,14 @@ type OverviewSummary struct {
 }
 
 type ClusterAlert struct {
-	ClusterID    int64                     `json:"cluster_id"`
-	ClusterName  string                    `json:"cluster_name"`
-	ModelName    string                    `json:"model_name"`
-	HealthStatus model.ClusterHealthStatus `json:"health_status"`
-	ErrorCode    string                    `json:"error_code,omitempty"`
-	LastPolledAt int64                     `json:"last_polled_at"`
+	ClusterID           int64                     `json:"cluster_id"`
+	ClusterName         string                    `json:"cluster_name"`
+	ModelName           string                    `json:"model_name"`
+	HealthStatus        model.ClusterHealthStatus `json:"health_status"`
+	ErrorCode           string                    `json:"error_code,omitempty"`
+	LastPolledAt        int64                     `json:"last_polled_at"`
+	LastSuccessAt       int64                     `json:"last_success_at"`
+	ConsecutiveFailures int                       `json:"consecutive_failures"`
 }
 
 type ModelClusterSummary struct {

@@ -321,12 +321,14 @@ func (service *Service) GetOverview(search string, modelID int, health model.Clu
 				cluster.HealthStatus == model.ClusterHealthOffline ||
 				cluster.HealthStatus == model.ClusterHealthPartial) {
 			response.Alerts = append(response.Alerts, ClusterAlert{
-				ClusterID:    cluster.ID,
-				ClusterName:  cluster.Name,
-				ModelName:    modelName,
-				HealthStatus: cluster.HealthStatus,
-				ErrorCode:    cluster.LastErrorCode,
-				LastPolledAt: cluster.LastPolledAt,
+				ClusterID:           cluster.ID,
+				ClusterName:         cluster.Name,
+				ModelName:           modelName,
+				HealthStatus:        cluster.HealthStatus,
+				ErrorCode:           cluster.LastErrorCode,
+				LastPolledAt:        cluster.LastPolledAt,
+				LastSuccessAt:       cluster.LastSuccessAt,
+				ConsecutiveFailures: cluster.ConsecutiveFailures,
 			})
 		}
 	}

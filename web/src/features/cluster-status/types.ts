@@ -177,6 +177,8 @@ export type ClusterOverview = {
     health_status: ClusterHealthStatus
     error_code?: string
     last_polled_at: number
+    last_success_at: number
+    consecutive_failures: number
   }>
   pagination: {
     page: number

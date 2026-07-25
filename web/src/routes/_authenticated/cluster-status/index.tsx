@@ -17,10 +17,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import z from 'zod'
 
 import { ClusterStatus } from '@/features/cluster-status'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
+
+const clusterStatusSearchSchema = z.object({
+  q: z.string().optional().catch(''),
+  model: z.number().int().nonnegative().optional().catch(0),
+  status: z
+    .enum(['', 'unknown', 'online', 'partial', 'abnormal', 'offline'])
+    .optional()
+    .catch(''),
+  page: z.number().int().positive().optional().catch(1),
+  pageSize: z
+    .number()
+    .refine((value) => [10, 20, 50].includes(value))
+    .optional()
+    .catch(10),
+})
 
 export const Route = createFileRoute('/_authenticated/cluster-status/')({
   beforeLoad: () => {
@@ -32,5 +48,6 @@ export const Route = createFileRoute('/_authenticated/cluster-status/')({
       })
     }
   },
+  validateSearch: clusterStatusSearchSchema,
   component: ClusterStatus,
 })

@@ -443,10 +443,300 @@ const phase2Translations = {
   },
 }
 
+const phase3English = {
+  'Agent address is blocked': 'Agent address is blocked',
+  'Agent is unreachable': 'Agent is unreachable',
+  'Agent rejected the Token': 'Agent rejected the Token',
+  'Agent request timed out': 'Agent request timed out',
+  'Auto-refreshes every {{seconds}} seconds.':
+    'Auto-refreshes every {{seconds}} seconds.',
+  'Check the Agent address, port, firewall, and service status, then retry.':
+    'Check the Agent address, port, firewall, and service status, then retry.',
+  'Cluster credential is unavailable': 'Cluster credential is unavailable',
+  'Collect Now': 'Collect Now',
+  'Collecting...': 'Collecting...',
+  'Data freshness': 'Data freshness',
+  'Displayed metrics come from the last successful sample at {{time}}. Last collection attempt: {{attempt}}.':
+    'Displayed metrics come from the last successful sample at {{time}}. Last collection attempt: {{attempt}}.',
+  'Failed {{count}} times in a row': 'Failed {{count}} times in a row',
+  Fresh: 'Fresh',
+  'Generate a new Agent Token and update the remote Agent configuration.':
+    'Generate a new Agent Token and update the remote Agent configuration.',
+  'Generate a new Agent Token, update the remote Agent, and test the connection again.':
+    'Generate a new Agent Token, update the remote Agent, and test the connection again.',
+  'Last attempt: {{time}}': 'Last attempt: {{time}}',
+  'Last success: {{time}}': 'Last success: {{time}}',
+  'Last Successful Sample': 'Last Successful Sample',
+  'Latest telemetry poll failed': 'Latest telemetry poll failed',
+  'New API did not receive a response in time. Check Agent load and network latency, then retry.':
+    'New API did not receive a response in time. Check Agent load and network latency, then retry.',
+  'No successful sample': 'No successful sample',
+  'Open cluster details to review the failure, or retry the collection now.':
+    'Open cluster details to review the failure, or retry the collection now.',
+  'Retry now': 'Retry now',
+  'Retrying...': 'Retrying...',
+  Stale: 'Stale',
+  'Telemetry data may be stale': 'Telemetry data may be stale',
+  'The Agent response is incompatible with this New API version. Check the Agent version and schema.':
+    'The Agent response is incompatible with this New API version. Check the Agent version and schema.',
+  'The outbound request policy blocks this address. Review the cluster Agent allowlist settings.':
+    'The outbound request policy blocks this address. Review the cluster Agent allowlist settings.',
+  'Unsupported telemetry schema': 'Unsupported telemetry schema',
+}
+
+const phase3Translations = {
+  zh: {
+    'Agent address is blocked': 'Agent 地址已被拦截',
+    'Agent is unreachable': '无法访问 Agent',
+    'Agent rejected the Token': 'Agent 拒绝了 Token',
+    'Agent request timed out': 'Agent 请求超时',
+    'Auto-refreshes every {{seconds}} seconds.':
+      '每 {{seconds}} 秒自动刷新一次。',
+    'Check the Agent address, port, firewall, and service status, then retry.':
+      '请检查 Agent 地址、端口、防火墙和服务状态，然后重试。',
+    'Cluster credential is unavailable': '集群凭据不可用',
+    'Collect Now': '立即采集',
+    'Collecting...': '正在采集...',
+    'Data freshness': '数据新鲜度',
+    'Displayed metrics come from the last successful sample at {{time}}. Last collection attempt: {{attempt}}.':
+      '当前指标来自 {{time}} 的最后一次成功采样，最近一次采集尝试时间为 {{attempt}}。',
+    'Failed {{count}} times in a row': '已连续失败 {{count}} 次',
+    Fresh: '新鲜',
+    'Generate a new Agent Token and update the remote Agent configuration.':
+      '请生成新的 Agent Token，并更新远端 Agent 配置。',
+    'Generate a new Agent Token, update the remote Agent, and test the connection again.':
+      '请生成新的 Agent Token，更新远端 Agent，然后重新测试连接。',
+    'Last attempt: {{time}}': '最近尝试：{{time}}',
+    'Last success: {{time}}': '最近成功：{{time}}',
+    'Last Successful Sample': '最近成功采样',
+    'Latest telemetry poll failed': '最近一次遥测采集失败',
+    'New API did not receive a response in time. Check Agent load and network latency, then retry.':
+      'New API 未能及时收到响应。请检查 Agent 负载和网络延迟，然后重试。',
+    'No successful sample': '暂无成功采样',
+    'Open cluster details to review the failure, or retry the collection now.':
+      '请打开集群详情查看故障，或立即重试采集。',
+    'Retry now': '立即重试',
+    'Retrying...': '正在重试...',
+    Stale: '已过期',
+    'Telemetry data may be stale': '遥测数据可能已过期',
+    'The Agent response is incompatible with this New API version. Check the Agent version and schema.':
+      'Agent 响应与当前 New API 版本不兼容。请检查 Agent 版本和数据格式。',
+    'The outbound request policy blocks this address. Review the cluster Agent allowlist settings.':
+      '出站请求策略拦截了此地址。请检查集群 Agent 地址白名单设置。',
+    'Unsupported telemetry schema': '不支持的遥测数据格式',
+  },
+  'zh-TW': {
+    'Agent address is blocked': 'Agent 位址已被攔截',
+    'Agent is unreachable': '無法連線至 Agent',
+    'Agent rejected the Token': 'Agent 拒絕了 Token',
+    'Agent request timed out': 'Agent 請求逾時',
+    'Auto-refreshes every {{seconds}} seconds.':
+      '每 {{seconds}} 秒自動重新整理一次。',
+    'Check the Agent address, port, firewall, and service status, then retry.':
+      '請檢查 Agent 位址、連接埠、防火牆與服務狀態，然後重試。',
+    'Cluster credential is unavailable': '叢集憑證不可用',
+    'Collect Now': '立即採集',
+    'Collecting...': '正在採集...',
+    'Data freshness': '資料新鮮度',
+    'Displayed metrics come from the last successful sample at {{time}}. Last collection attempt: {{attempt}}.':
+      '目前指標來自 {{time}} 的最後一次成功採樣，最近一次採集嘗試時間為 {{attempt}}。',
+    'Failed {{count}} times in a row': '已連續失敗 {{count}} 次',
+    Fresh: '最新',
+    'Generate a new Agent Token and update the remote Agent configuration.':
+      '請產生新的 Agent Token，並更新遠端 Agent 設定。',
+    'Generate a new Agent Token, update the remote Agent, and test the connection again.':
+      '請產生新的 Agent Token，更新遠端 Agent，然後重新測試連線。',
+    'Last attempt: {{time}}': '最近嘗試：{{time}}',
+    'Last success: {{time}}': '最近成功：{{time}}',
+    'Last Successful Sample': '最近成功採樣',
+    'Latest telemetry poll failed': '最近一次遙測採集失敗',
+    'New API did not receive a response in time. Check Agent load and network latency, then retry.':
+      'New API 未能及時收到回應。請檢查 Agent 負載與網路延遲，然後重試。',
+    'No successful sample': '暫無成功採樣',
+    'Open cluster details to review the failure, or retry the collection now.':
+      '請開啟叢集詳情檢查故障，或立即重試採集。',
+    'Retry now': '立即重試',
+    'Retrying...': '正在重試...',
+    Stale: '已過期',
+    'Telemetry data may be stale': '遙測資料可能已過期',
+    'The Agent response is incompatible with this New API version. Check the Agent version and schema.':
+      'Agent 回應與目前 New API 版本不相容。請檢查 Agent 版本與資料格式。',
+    'The outbound request policy blocks this address. Review the cluster Agent allowlist settings.':
+      '外送請求策略攔截了此位址。請檢查叢集 Agent 位址允許清單設定。',
+    'Unsupported telemetry schema': '不支援的遙測資料格式',
+  },
+  fr: {
+    'Agent address is blocked': "L'adresse de l'Agent est bloquée",
+    'Agent is unreachable': "L'Agent est inaccessible",
+    'Agent rejected the Token': "L'Agent a rejeté le Token",
+    'Agent request timed out': "La requête vers l'Agent a expiré",
+    'Auto-refreshes every {{seconds}} seconds.':
+      'Actualisation automatique toutes les {{seconds}} secondes.',
+    'Check the Agent address, port, firewall, and service status, then retry.':
+      "Vérifiez l'adresse, le port, le pare-feu et l'état du service Agent, puis réessayez.",
+    'Cluster credential is unavailable':
+      "L'identifiant du cluster est indisponible",
+    'Collect Now': 'Collecter maintenant',
+    'Collecting...': 'Collecte en cours...',
+    'Data freshness': 'Fraîcheur des données',
+    'Displayed metrics come from the last successful sample at {{time}}. Last collection attempt: {{attempt}}.':
+      'Les métriques affichées proviennent du dernier échantillon réussi à {{time}}. Dernière tentative : {{attempt}}.',
+    'Failed {{count}} times in a row': '{{count}} échecs consécutifs',
+    Fresh: 'À jour',
+    'Generate a new Agent Token and update the remote Agent configuration.':
+      "Générez un nouveau Token Agent et mettez à jour la configuration de l'Agent distant.",
+    'Generate a new Agent Token, update the remote Agent, and test the connection again.':
+      "Générez un nouveau Token Agent, mettez à jour l'Agent distant, puis retestez la connexion.",
+    'Last attempt: {{time}}': 'Dernière tentative : {{time}}',
+    'Last success: {{time}}': 'Dernier succès : {{time}}',
+    'Last Successful Sample': 'Dernier échantillon réussi',
+    'Latest telemetry poll failed':
+      'La dernière collecte de télémétrie a échoué',
+    'New API did not receive a response in time. Check Agent load and network latency, then retry.':
+      "New API n'a pas reçu de réponse à temps. Vérifiez la charge de l'Agent et la latence réseau, puis réessayez.",
+    'No successful sample': 'Aucun échantillon réussi',
+    'Open cluster details to review the failure, or retry the collection now.':
+      'Ouvrez les détails du cluster pour examiner la panne ou relancez la collecte maintenant.',
+    'Retry now': 'Réessayer maintenant',
+    'Retrying...': 'Nouvelle tentative...',
+    Stale: 'Obsolète',
+    'Telemetry data may be stale':
+      'Les données de télémétrie peuvent être obsolètes',
+    'The Agent response is incompatible with this New API version. Check the Agent version and schema.':
+      "La réponse de l'Agent est incompatible avec cette version de New API. Vérifiez la version et le schéma de l'Agent.",
+    'The outbound request policy blocks this address. Review the cluster Agent allowlist settings.':
+      "La stratégie des requêtes sortantes bloque cette adresse. Vérifiez la liste d'autorisation des Agents de cluster.",
+    'Unsupported telemetry schema': 'Schéma de télémétrie non pris en charge',
+  },
+  ja: {
+    'Agent address is blocked': 'Agent アドレスがブロックされています',
+    'Agent is unreachable': 'Agent に到達できません',
+    'Agent rejected the Token': 'Agent が Token を拒否しました',
+    'Agent request timed out': 'Agent リクエストがタイムアウトしました',
+    'Auto-refreshes every {{seconds}} seconds.':
+      '{{seconds}} 秒ごとに自動更新します。',
+    'Check the Agent address, port, firewall, and service status, then retry.':
+      'Agent のアドレス、ポート、ファイアウォール、サービス状態を確認してから再試行してください。',
+    'Cluster credential is unavailable': 'クラスター認証情報を利用できません',
+    'Collect Now': '今すぐ収集',
+    'Collecting...': '収集中...',
+    'Data freshness': 'データの鮮度',
+    'Displayed metrics come from the last successful sample at {{time}}. Last collection attempt: {{attempt}}.':
+      '表示中の指標は {{time}} の最新成功サンプルです。直近の収集試行：{{attempt}}。',
+    'Failed {{count}} times in a row': '{{count}} 回連続で失敗',
+    Fresh: '最新',
+    'Generate a new Agent Token and update the remote Agent configuration.':
+      '新しい Agent Token を生成し、リモート Agent の設定を更新してください。',
+    'Generate a new Agent Token, update the remote Agent, and test the connection again.':
+      '新しい Agent Token を生成してリモート Agent を更新し、接続を再テストしてください。',
+    'Last attempt: {{time}}': '直近の試行：{{time}}',
+    'Last success: {{time}}': '直近の成功：{{time}}',
+    'Last Successful Sample': '最新成功サンプル',
+    'Latest telemetry poll failed': '最新のテレメトリ収集に失敗しました',
+    'New API did not receive a response in time. Check Agent load and network latency, then retry.':
+      'New API が時間内に応答を受信できませんでした。Agent の負荷とネットワーク遅延を確認して再試行してください。',
+    'No successful sample': '成功サンプルなし',
+    'Open cluster details to review the failure, or retry the collection now.':
+      'クラスター詳細で障害を確認するか、今すぐ収集を再試行してください。',
+    'Retry now': '今すぐ再試行',
+    'Retrying...': '再試行中...',
+    Stale: '期限切れ',
+    'Telemetry data may be stale': 'テレメトリデータが古い可能性があります',
+    'The Agent response is incompatible with this New API version. Check the Agent version and schema.':
+      'Agent の応答はこの New API バージョンと互換性がありません。Agent のバージョンとスキーマを確認してください。',
+    'The outbound request policy blocks this address. Review the cluster Agent allowlist settings.':
+      '送信リクエストポリシーがこのアドレスをブロックしています。クラスター Agent の許可リスト設定を確認してください。',
+    'Unsupported telemetry schema': '未対応のテレメトリスキーマ',
+  },
+  ru: {
+    'Agent address is blocked': 'Адрес Agent заблокирован',
+    'Agent is unreachable': 'Agent недоступен',
+    'Agent rejected the Token': 'Agent отклонил Token',
+    'Agent request timed out': 'Истекло время ожидания запроса к Agent',
+    'Auto-refreshes every {{seconds}} seconds.':
+      'Автообновление каждые {{seconds}} сек.',
+    'Check the Agent address, port, firewall, and service status, then retry.':
+      'Проверьте адрес и порт Agent, межсетевой экран и состояние сервиса, затем повторите попытку.',
+    'Cluster credential is unavailable': 'Учетные данные кластера недоступны',
+    'Collect Now': 'Собрать сейчас',
+    'Collecting...': 'Идет сбор...',
+    'Data freshness': 'Актуальность данных',
+    'Displayed metrics come from the last successful sample at {{time}}. Last collection attempt: {{attempt}}.':
+      'Показаны метрики из последней успешной выборки в {{time}}. Последняя попытка сбора: {{attempt}}.',
+    'Failed {{count}} times in a row': 'Последовательных сбоев: {{count}}',
+    Fresh: 'Актуально',
+    'Generate a new Agent Token and update the remote Agent configuration.':
+      'Создайте новый Agent Token и обновите конфигурацию удаленного Agent.',
+    'Generate a new Agent Token, update the remote Agent, and test the connection again.':
+      'Создайте новый Agent Token, обновите удаленный Agent и снова проверьте подключение.',
+    'Last attempt: {{time}}': 'Последняя попытка: {{time}}',
+    'Last success: {{time}}': 'Последний успех: {{time}}',
+    'Last Successful Sample': 'Последняя успешная выборка',
+    'Latest telemetry poll failed':
+      'Последний сбор телеметрии завершился сбоем',
+    'New API did not receive a response in time. Check Agent load and network latency, then retry.':
+      'New API не получил ответ вовремя. Проверьте нагрузку Agent и задержку сети, затем повторите попытку.',
+    'No successful sample': 'Нет успешных выборок',
+    'Open cluster details to review the failure, or retry the collection now.':
+      'Откройте сведения о кластере для проверки сбоя или повторите сбор сейчас.',
+    'Retry now': 'Повторить сейчас',
+    'Retrying...': 'Повторная попытка...',
+    Stale: 'Устарело',
+    'Telemetry data may be stale': 'Данные телеметрии могут быть устаревшими',
+    'The Agent response is incompatible with this New API version. Check the Agent version and schema.':
+      'Ответ Agent несовместим с этой версией New API. Проверьте версию и схему Agent.',
+    'The outbound request policy blocks this address. Review the cluster Agent allowlist settings.':
+      'Политика исходящих запросов блокирует этот адрес. Проверьте список разрешенных адресов Agent кластера.',
+    'Unsupported telemetry schema': 'Неподдерживаемая схема телеметрии',
+  },
+  vi: {
+    'Agent address is blocked': 'Địa chỉ Agent bị chặn',
+    'Agent is unreachable': 'Không thể kết nối Agent',
+    'Agent rejected the Token': 'Agent đã từ chối Token',
+    'Agent request timed out': 'Yêu cầu Agent đã hết thời gian chờ',
+    'Auto-refreshes every {{seconds}} seconds.':
+      'Tự động làm mới mỗi {{seconds}} giây.',
+    'Check the Agent address, port, firewall, and service status, then retry.':
+      'Kiểm tra địa chỉ, cổng, tường lửa và trạng thái dịch vụ Agent, sau đó thử lại.',
+    'Cluster credential is unavailable':
+      'Thông tin xác thực cụm không khả dụng',
+    'Collect Now': 'Thu thập ngay',
+    'Collecting...': 'Đang thu thập...',
+    'Data freshness': 'Độ mới của dữ liệu',
+    'Displayed metrics come from the last successful sample at {{time}}. Last collection attempt: {{attempt}}.':
+      'Các chỉ số hiển thị đến từ mẫu thành công gần nhất lúc {{time}}. Lần thu thập gần nhất: {{attempt}}.',
+    'Failed {{count}} times in a row': 'Đã lỗi liên tiếp {{count}} lần',
+    Fresh: 'Mới',
+    'Generate a new Agent Token and update the remote Agent configuration.':
+      'Tạo Agent Token mới và cập nhật cấu hình Agent từ xa.',
+    'Generate a new Agent Token, update the remote Agent, and test the connection again.':
+      'Tạo Agent Token mới, cập nhật Agent từ xa và kiểm tra lại kết nối.',
+    'Last attempt: {{time}}': 'Lần thử gần nhất: {{time}}',
+    'Last success: {{time}}': 'Thành công gần nhất: {{time}}',
+    'Last Successful Sample': 'Mẫu thành công gần nhất',
+    'Latest telemetry poll failed': 'Lần thu thập đo từ xa gần nhất thất bại',
+    'New API did not receive a response in time. Check Agent load and network latency, then retry.':
+      'New API không nhận được phản hồi kịp thời. Kiểm tra tải Agent và độ trễ mạng, sau đó thử lại.',
+    'No successful sample': 'Chưa có mẫu thành công',
+    'Open cluster details to review the failure, or retry the collection now.':
+      'Mở chi tiết cụm để xem lỗi hoặc thử thu thập lại ngay.',
+    'Retry now': 'Thử lại ngay',
+    'Retrying...': 'Đang thử lại...',
+    Stale: 'Đã cũ',
+    'Telemetry data may be stale': 'Dữ liệu đo từ xa có thể đã cũ',
+    'The Agent response is incompatible with this New API version. Check the Agent version and schema.':
+      'Phản hồi của Agent không tương thích với phiên bản New API này. Kiểm tra phiên bản và schema của Agent.',
+    'The outbound request policy blocks this address. Review the cluster Agent allowlist settings.':
+      'Chính sách yêu cầu đi ra chặn địa chỉ này. Kiểm tra danh sách cho phép Agent của cụm.',
+    'Unsupported telemetry schema': 'Schema đo từ xa không được hỗ trợ',
+  },
+}
+
 const newKeys = {
-  en: { ...english, ...phase2English },
+  en: { ...english, ...phase2English, ...phase3English },
   zh: {
     ...phase2Translations.zh,
+    ...phase3Translations.zh,
     'Cluster data exported': '集群数据已导出',
     'Cluster list (CSV)': '集群列表（CSV）',
     'Complete cluster snapshot (ZIP)': '完整集群快照（ZIP）',
@@ -473,11 +763,15 @@ const newKeys = {
     'Model summary (CSV)': '模型汇总（CSV）',
     'Normalized snapshot (JSON)': '标准化快照（JSON）',
   },
-  'zh-TW': { ...english, ...phase2Translations['zh-TW'] },
-  fr: { ...english, ...phase2Translations.fr },
-  ja: { ...english, ...phase2Translations.ja },
-  ru: { ...english, ...phase2Translations.ru },
-  vi: { ...english, ...phase2Translations.vi },
+  'zh-TW': {
+    ...english,
+    ...phase2Translations['zh-TW'],
+    ...phase3Translations['zh-TW'],
+  },
+  fr: { ...english, ...phase2Translations.fr, ...phase3Translations.fr },
+  ja: { ...english, ...phase2Translations.ja, ...phase3Translations.ja },
+  ru: { ...english, ...phase2Translations.ru, ...phase3Translations.ru },
+  vi: { ...english, ...phase2Translations.vi, ...phase3Translations.vi },
 }
 
 async function main() {

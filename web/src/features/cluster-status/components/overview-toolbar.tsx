@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Add01Icon,
   Download04Icon,
+  Refresh01Icon,
   SearchIcon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -45,6 +46,7 @@ type OverviewToolbarProps = {
   modelOptions: ModelOption[]
   onExport: () => void
   onAddCluster: () => void
+  onRefresh: () => void
   refreshing: boolean
 }
 
@@ -106,6 +108,23 @@ export function OverviewToolbar(props: OverviewToolbarProps) {
         {t('Export')}
       </Button>
 
+      <Button
+        variant='outline'
+        onClick={props.onRefresh}
+        disabled={props.refreshing}
+      >
+        {props.refreshing ? (
+          <Spinner data-icon='inline-start' />
+        ) : (
+          <HugeiconsIcon
+            icon={Refresh01Icon}
+            strokeWidth={2}
+            data-icon='inline-start'
+          />
+        )}
+        {props.refreshing ? t('Refreshing...') : t('Refresh')}
+      </Button>
+
       <Button onClick={props.onAddCluster}>
         <HugeiconsIcon
           icon={Add01Icon}
@@ -114,16 +133,6 @@ export function OverviewToolbar(props: OverviewToolbarProps) {
         />
         {t('Add Cluster')}
       </Button>
-
-      {props.refreshing ? (
-        <span
-          className='text-muted-foreground flex items-center gap-2 text-sm'
-          aria-live='polite'
-        >
-          <Spinner />
-          {t('Refreshing...')}
-        </span>
-      ) : null}
     </div>
   )
 }

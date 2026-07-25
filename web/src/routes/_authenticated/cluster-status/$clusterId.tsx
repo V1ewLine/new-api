@@ -17,10 +17,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import z from 'zod'
 
 import { ClusterDetail } from '@/features/cluster-status/cluster-detail'
+import {
+  CLUSTER_DETAIL_TABS,
+  TELEMETRY_TREND_ROUTE_RANGES,
+} from '@/features/cluster-status/lib/route-state'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
+
+const clusterDetailSearchSchema = z.object({
+  tab: z.enum(CLUSTER_DETAIL_TABS).optional().catch('overview'),
+  range: z.enum(TELEMETRY_TREND_ROUTE_RANGES).optional().catch('1h'),
+  start: z.string().optional().catch(undefined),
+  end: z.string().optional().catch(undefined),
+})
 
 export const Route = createFileRoute(
   '/_authenticated/cluster-status/$clusterId'
@@ -31,6 +43,7 @@ export const Route = createFileRoute(
       throw redirect({ to: '/403' })
     }
   },
+  validateSearch: clusterDetailSearchSchema,
   component: ClusterDetailRoute,
 })
 

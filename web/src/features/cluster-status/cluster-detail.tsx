@@ -23,10 +23,11 @@ import {
   Download04Icon,
   InformationCircleIcon,
   Key01Icon,
+  Refresh01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { getRouteApi, Link, useNavigate } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,6 +46,7 @@ import {
 } from '@/components/ui/card'
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -71,6 +73,7 @@ import { ClusterExportDialog } from './components/cluster-export-dialog'
 import { DeleteClusterDialog } from './components/delete-cluster-dialog'
 import { RotateClusterCredentialDialog } from './components/rotate-cluster-credential-dialog'
 import { ClusterStatusBadge } from './components/status-badge'
+import { TelemetryFreshness } from './components/telemetry-freshness'
 import { TelemetryTimeRangeControl } from './components/telemetry-time-range-control'
 import {
   EngineTrendCharts,
@@ -88,16 +91,22 @@ import {
   formatPercent,
   formatTimestamp,
 } from './lib/format'
+import { getTelemetryFreshness } from './lib/freshness'
+import { getClusterPollErrorPresentation } from './lib/poll-error'
 import {
-  DEFAULT_TELEMETRY_TREND_RANGE,
-  type TelemetryTrendTimeRange,
-} from './lib/trend-range'
+  trendRangeFromRouteSearch,
+  trendRangeToRouteSearch,
+  type ClusterDetailTab,
+} from './lib/route-state'
+import type { TelemetryTrendTimeRange } from './lib/trend-range'
 import { clusterQueryKeys } from './query-keys'
 import type { Cluster, NormalizedTelemetry } from './types'
 
 type ClusterDetailProps = {
   clusterId: number
 }
+
+const route = getRouteApi('/_authenticated/cluster-status/$clusterId')
 
 type TrendTabProps = {
   clusterId: number
@@ -140,13 +149,6 @@ function windowLabel(
 ): string {
   if (complete === undefined) return '—'
   return complete ? translate('Complete') : translate('Incomplete')
-}
-
-function pollErrorTitle(errorCode: string, translate: TFunction): string {
-  if (errorCode === 'AGENT_SCHEMA_UNSUPPORTED') {
-    return translate('Unsupported telemetry schema')
-  }
-  return translate('Latest telemetry poll failed')
 }
 
 function credentialSetupDescription(
@@ -200,8 +202,11 @@ function OverviewTab(
           value={telemetry?.schema_version ?? '—'}
         />
         <MetricCard
-          title={t('Last Poll')}
-          value={formatTimestamp(props.cluster.last_polled_at)}
+          title={t('Last Successful Sample')}
+          value={formatTimestamp(props.cluster.last_success_at)}
+          description={t('Last attempt: {{time}}', {
+            time: formatTimestamp(props.cluster.last_polled_at),
+          })}
         />
         <MetricCard
           title={t('Requests')}
@@ -478,12 +483,13 @@ function MachineTab(
 export function ClusterDetail(props: ClusterDetailProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const routeSearch = route.useSearch()
+  const routeNavigate = route.useNavigate()
   const queryClient = useQueryClient()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
-  const [trendRange, setTrendRange] = useState<TelemetryTrendTimeRange>(() => ({
-    ...DEFAULT_TELEMETRY_TREND_RANGE,
-  }))
+  const trendRange = trendRangeFromRouteSearch(routeSearch)
+  const activeTab = routeSearch.tab ?? 'overview'
   const refreshInterval = useClusterRefreshInterval()
   const clusterQuery = useQuery({
     queryKey: clusterQueryKeys.cluster(props.clusterId),
@@ -547,17 +553,22 @@ export function ClusterDetail(props: ClusterDetailProps) {
     },
   })
   const cluster = clusterQuery.data
+  const pollError = getClusterPollErrorPresentation(cluster?.last_error_code)
+  const freshness = getTelemetryFreshness(
+    cluster?.last_success_at,
+    refreshInterval
+  )
   const credentialPending = cluster?.credential_status === 'pending'
   const statusActionPending = credentialPending
     ? verifyMutation.isPending
     : refreshMutation.isPending
   let statusActionLabel = credentialPending
     ? t('Test Connection')
-    : t('Refresh')
+    : t('Collect Now')
   if (statusActionPending) {
     statusActionLabel = credentialPending
       ? t('Testing connection...')
-      : t('Refreshing...')
+      : t('Collecting...')
   }
 
   function runStatusAction() {
@@ -626,7 +637,7 @@ export function ClusterDetail(props: ClusterDetailProps) {
               <Spinner data-icon='inline-start' />
             ) : (
               <HugeiconsIcon
-                icon={InformationCircleIcon}
+                icon={Refresh01Icon}
                 strokeWidth={2}
                 data-icon='inline-start'
               />
@@ -672,6 +683,18 @@ export function ClusterDetail(props: ClusterDetailProps) {
                         : t('Please try again later.')}
                     </EmptyDescription>
                   </EmptyHeader>
+                  <EmptyContent>
+                    <Button
+                      variant='outline'
+                      onClick={() => clusterQuery.refetch()}
+                      disabled={clusterQuery.isFetching}
+                    >
+                      {clusterQuery.isFetching ? (
+                        <Spinner data-icon='inline-start' />
+                      ) : null}
+                      {clusterQuery.isFetching ? t('Retrying...') : t('Retry')}
+                    </Button>
+                  </EmptyContent>
                 </Empty>
               </CardContent>
             </Card>
@@ -714,15 +737,40 @@ export function ClusterDetail(props: ClusterDetailProps) {
               cluster.credential_status === 'active' ? (
                 <Alert variant='destructive'>
                   <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
-                  <AlertTitle>
-                    {pollErrorTitle(cluster.last_error_code, t)}
-                  </AlertTitle>
+                  <AlertTitle>{t(pollError.title)}</AlertTitle>
+                  <AlertDescription className='flex flex-col items-start gap-2'>
+                    <span>{t(pollError.description)}</span>
+                    <code>{cluster.last_error_code}</code>
+                    {pollError.retryable ? (
+                      <Button
+                        size='sm'
+                        variant='outline'
+                        onClick={() => refreshMutation.mutate()}
+                        disabled={refreshMutation.isPending}
+                      >
+                        {refreshMutation.isPending ? (
+                          <Spinner data-icon='inline-start' />
+                        ) : null}
+                        {refreshMutation.isPending
+                          ? t('Retrying...')
+                          : t('Retry now')}
+                      </Button>
+                    ) : null}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {cluster.telemetry && freshness === 'stale' ? (
+                <Alert>
+                  <HugeiconsIcon icon={InformationCircleIcon} strokeWidth={2} />
+                  <AlertTitle>{t('Telemetry data may be stale')}</AlertTitle>
                   <AlertDescription>
-                    {cluster.last_error_code === 'AGENT_SCHEMA_UNSUPPORTED'
-                      ? t(
-                          'The Agent returned an unsupported telemetry schema version.'
-                        )
-                      : cluster.last_error_code}
+                    {t(
+                      'Displayed metrics come from the last successful sample at {{time}}. Last collection attempt: {{attempt}}.',
+                      {
+                        time: formatTimestamp(cluster.last_success_at),
+                        attempt: formatTimestamp(cluster.last_polled_at),
+                      }
+                    )}
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -746,19 +794,47 @@ export function ClusterDetail(props: ClusterDetailProps) {
                       'All charts share this time window. Relative windows refresh automatically.'
                     )}
                   </p>
+                  <div className='mt-2'>
+                    <TelemetryFreshness
+                      lastSuccessAt={cluster.last_success_at}
+                      lastPolledAt={cluster.last_polled_at}
+                      refreshInterval={refreshInterval}
+                      showLastAttempt
+                    />
+                  </div>
                 </div>
                 <div className='flex items-center justify-end gap-2'>
                   {trendQuery.isFetching ? <Spinner /> : null}
                   <TelemetryTimeRangeControl
                     value={trendRange}
-                    onChange={setTrendRange}
+                    onChange={(value) =>
+                      routeNavigate({
+                        search: (previous) => ({
+                          ...previous,
+                          ...trendRangeToRouteSearch(value),
+                        }),
+                      })
+                    }
                     retentionDays={trendQuery.data?.retention_days}
                     availableFrom={trendQuery.data?.available_from}
                   />
                 </div>
               </div>
 
-              <Tabs defaultValue='overview'>
+              <Tabs
+                value={activeTab}
+                onValueChange={(value) =>
+                  routeNavigate({
+                    search: (previous) => ({
+                      ...previous,
+                      tab:
+                        value === 'overview'
+                          ? undefined
+                          : (value as ClusterDetailTab),
+                    }),
+                  })
+                }
+              >
                 <TabsList variant='line'>
                   <TabsTrigger value='overview'>{t('Overview')}</TabsTrigger>
                   <TabsTrigger value='engine'>

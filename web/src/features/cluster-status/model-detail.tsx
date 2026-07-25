@@ -17,11 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
+  Add01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
   Delete02Icon,
   Download04Icon,
   InformationCircleIcon,
+  Refresh01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
@@ -40,12 +42,14 @@ import {
 } from '@/components/ui/card'
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
 import {
   Table,
   TableBody,
@@ -56,12 +60,14 @@ import {
 } from '@/components/ui/table'
 
 import { getClusterModelDetail } from './api'
+import { AddClusterDialog } from './components/add-cluster-dialog'
 import { ClusterExportDialog } from './components/cluster-export-dialog'
 import { DeleteClusterDialog } from './components/delete-cluster-dialog'
 import { ModelAvatar } from './components/model-avatar'
 import { ClusterStatusBadge } from './components/status-badge'
+import { TelemetryFreshness } from './components/telemetry-freshness'
 import { useClusterRefreshInterval } from './hooks/use-cluster-refresh-interval'
-import { formatCompactNumber, formatTimestamp, formatWatts } from './lib/format'
+import { formatCompactNumber, formatWatts } from './lib/format'
 import { clusterQueryKeys } from './query-keys'
 import type { Cluster } from './types'
 
@@ -90,6 +96,7 @@ function MetricCard(props: {
 export function ClusterModelDetail(props: ClusterModelDetailProps) {
   const { t } = useTranslation()
   const [deleteTarget, setDeleteTarget] = useState<Cluster | null>(null)
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const refreshInterval = useClusterRefreshInterval()
   const detailQuery = useQuery({
@@ -138,6 +145,22 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
         <SectionPageLayout.Actions>
           <Button
             variant='outline'
+            onClick={() => detailQuery.refetch()}
+            disabled={detailQuery.isFetching}
+          >
+            {detailQuery.isFetching ? (
+              <Spinner data-icon='inline-start' />
+            ) : (
+              <HugeiconsIcon
+                icon={Refresh01Icon}
+                strokeWidth={2}
+                data-icon='inline-start'
+              />
+            )}
+            {detailQuery.isFetching ? t('Refreshing...') : t('Refresh')}
+          </Button>
+          <Button
+            variant='outline'
             onClick={() => setExportDialogOpen(true)}
             disabled={!detail}
           >
@@ -147,6 +170,14 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
               data-icon='inline-start'
             />
             {t('Export')}
+          </Button>
+          <Button onClick={() => setAddDialogOpen(true)}>
+            <HugeiconsIcon
+              icon={Add01Icon}
+              strokeWidth={2}
+              data-icon='inline-start'
+            />
+            {t('Add Cluster')}
           </Button>
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
@@ -181,6 +212,18 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
                         : t('Please try again later.')}
                     </EmptyDescription>
                   </EmptyHeader>
+                  <EmptyContent>
+                    <Button
+                      variant='outline'
+                      onClick={() => detailQuery.refetch()}
+                      disabled={detailQuery.isFetching}
+                    >
+                      {detailQuery.isFetching ? (
+                        <Spinner data-icon='inline-start' />
+                      ) : null}
+                      {detailQuery.isFetching ? t('Retrying...') : t('Retry')}
+                    </Button>
+                  </EmptyContent>
                 </Empty>
               </CardContent>
             </Card>
@@ -228,7 +271,16 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
                 <CardHeader>
                   <CardTitle>{t('Cluster List')}</CardTitle>
                   <CardDescription>
-                    {t('Latest status for every cluster linked to this model')}
+                    <span className='block'>
+                      {t(
+                        'Latest status for every cluster linked to this model'
+                      )}
+                    </span>
+                    <span className='block'>
+                      {t('Auto-refreshes every {{seconds}} seconds.', {
+                        seconds: Math.round(refreshInterval / 1000),
+                      })}
+                    </span>
                   </CardDescription>
                 </CardHeader>
                 <CardContent className='overflow-x-auto'>
@@ -240,6 +292,11 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
                           {t('Add a cluster from the cluster status page.')}
                         </EmptyDescription>
                       </EmptyHeader>
+                      <EmptyContent>
+                        <Button onClick={() => setAddDialogOpen(true)}>
+                          {t('Add Cluster')}
+                        </Button>
+                      </EmptyContent>
                     </Empty>
                   ) : (
                     <Table>
@@ -250,7 +307,7 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
                           <TableHead>{t('Requests')}</TableHead>
                           <TableHead>{t('Tokens')}</TableHead>
                           <TableHead>{t('GPU Board Power')}</TableHead>
-                          <TableHead>{t('Last Poll')}</TableHead>
+                          <TableHead>{t('Data freshness')}</TableHead>
                           <TableHead className='text-right'>
                             {t('Actions')}
                           </TableHead>
@@ -284,7 +341,12 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
                               )}
                             </TableCell>
                             <TableCell>
-                              {formatTimestamp(cluster.last_polled_at)}
+                              <TelemetryFreshness
+                                lastSuccessAt={cluster.last_success_at}
+                                lastPolledAt={cluster.last_polled_at}
+                                refreshInterval={refreshInterval}
+                                showLastAttempt
+                              />
                             </TableCell>
                             <TableCell>
                               <div className='flex justify-end gap-1'>
@@ -342,6 +404,11 @@ export function ClusterModelDetail(props: ClusterModelDetailProps) {
             setDeleteTarget(null)
           }
         }}
+      />
+      <AddClusterDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        initialModelId={props.modelId}
       />
       <ClusterExportDialog
         open={exportDialogOpen}

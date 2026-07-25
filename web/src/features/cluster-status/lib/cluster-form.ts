@@ -39,3 +39,11 @@ export const clusterFormSchema = z.object({
 })
 
 export type ClusterFormValues = z.infer<typeof clusterFormSchema>
+
+export function clusterFormDefaultValues(modelId = 0): ClusterFormValues {
+  return {
+    modelId,
+    name: '',
+    agentAddress: '',
+  }
+}
