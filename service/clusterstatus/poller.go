@@ -39,7 +39,7 @@ type Poller struct {
 
 func DefaultPollConfig() PollConfig {
 	intervalSeconds := common.GetClusterStatusRefreshIntervalSeconds()
-	timeoutSeconds := common.GetEnvOrDefault("CLUSTER_TELEMETRY_REQUEST_TIMEOUT_SECONDS", 3)
+	timeoutSeconds := common.GetEnvOrDefault("CLUSTER_TELEMETRY_REQUEST_TIMEOUT_SECONDS", 10)
 	if timeoutSeconds < 1 {
 		timeoutSeconds = 1
 	}
