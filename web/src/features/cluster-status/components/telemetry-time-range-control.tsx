@@ -21,8 +21,9 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DateTimePicker } from '@/components/datetime-picker'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Popover,
   PopoverContent,
@@ -32,6 +33,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import dayjs from '@/lib/dayjs'
+import { cn } from '@/lib/utils'
 
 import {
   TELEMETRY_TREND_PRESETS,
@@ -45,16 +47,6 @@ type TelemetryTimeRangeControlProps = {
   retentionDays?: number
   availableFrom?: number
   scope?: 'page' | 'chart'
-}
-
-function inputValue(date: Date | undefined): string {
-  return date ? dayjs(date).format('YYYY-MM-DDTHH:mm:ss') : ''
-}
-
-function dateFromInput(value: string): Date | undefined {
-  if (!value) return undefined
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? undefined : date
 }
 
 function cloneRange(range: TelemetryTrendTimeRange): TelemetryTrendTimeRange {
@@ -157,7 +149,7 @@ export function TelemetryTimeRangeControl(
           </PopoverDescription>
         </PopoverHeader>
 
-        <div className='flex flex-wrap gap-2'>
+        <div className='grid grid-cols-2 gap-2 sm:flex'>
           {TELEMETRY_TREND_PRESETS.map((preset) => {
             const selected =
               props.value.kind === 'relative' &&
@@ -166,8 +158,12 @@ export function TelemetryTimeRangeControl(
               <Button
                 key={preset.minutes}
                 type='button'
-                variant={selected ? 'secondary' : 'outline'}
+                variant={selected ? 'default' : 'outline'}
                 size='sm'
+                className={cn(
+                  'flex-1',
+                  selected && 'ring-ring ring-2 ring-offset-2'
+                )}
                 aria-pressed={selected}
                 disabled={preset.minutes > retentionDays * 1440}
                 onClick={() => {
@@ -184,37 +180,37 @@ export function TelemetryTimeRangeControl(
           })}
         </div>
 
-        <div className='grid gap-3 sm:grid-cols-2'>
-          <label className='flex flex-col gap-1.5 text-sm' htmlFor={startId}>
-            <span className='font-medium'>{t('Start time')}</span>
-            <Input
+        <div className='grid gap-2.5'>
+          <div className='grid gap-2'>
+            <Label htmlFor={startId}>{t('Start time')}</Label>
+            <DateTimePicker
               id={startId}
-              type='datetime-local'
-              step={1}
-              value={inputValue(draft.start)}
-              onChange={(event) =>
+              value={draft.start}
+              onChange={(date) =>
                 setDraft((current) => ({
                   ...current,
-                  start: dateFromInput(event.target.value),
+                  start: date,
                 }))
               }
+              placeholder={t('Select start time')}
+              precision='second'
             />
-          </label>
-          <label className='flex flex-col gap-1.5 text-sm' htmlFor={endId}>
-            <span className='font-medium'>{t('End time')}</span>
-            <Input
+          </div>
+          <div className='grid gap-2'>
+            <Label htmlFor={endId}>{t('End time')}</Label>
+            <DateTimePicker
               id={endId}
-              type='datetime-local'
-              step={1}
-              value={inputValue(draft.end)}
-              onChange={(event) =>
+              value={draft.end}
+              onChange={(date) =>
                 setDraft((current) => ({
                   ...current,
-                  end: dateFromInput(event.target.value),
+                  end: date,
                 }))
               }
+              placeholder={t('Select end time')}
+              precision='second'
             />
-          </label>
+          </div>
         </div>
 
         {rangeError ? (

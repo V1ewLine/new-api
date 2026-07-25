@@ -31,9 +31,10 @@ describe('cluster export dialog layout', () => {
     assert.match(clusterExportDialogLayout.content, /overflow-y-auto/)
   })
 
-  test('stacks time inputs until the dialog has enough horizontal space', () => {
-    assert.match(clusterExportDialogLayout.rangeGrid, /md:grid-cols-2/)
-    assert.doesNotMatch(clusterExportDialogLayout.rangeGrid, /sm:grid-cols-2/)
+  test('stacks date-time pickers like the dashboard filter dialog', () => {
+    assert.match(clusterExportDialogLayout.rangeGrid, /grid/)
+    assert.match(clusterExportDialogLayout.rangeGrid, /gap-2\.5/)
+    assert.doesNotMatch(clusterExportDialogLayout.rangeGrid, /grid-cols-2/)
   })
 
   test('separates timezone and history availability into distinct lines', () => {

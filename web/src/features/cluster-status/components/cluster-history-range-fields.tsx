@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DateTimePicker } from '@/components/datetime-picker'
 import { Button } from '@/components/ui/button'
 import {
   Field,
@@ -26,8 +27,8 @@ import {
   FieldGroup,
   FieldLabel,
 } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
 import dayjs from '@/lib/dayjs'
+import { cn } from '@/lib/utils'
 
 import { buildClusterHistoryPresetRange } from '../lib/export'
 import { clusterExportDialogLayout } from '../lib/export-dialog-layout'
@@ -38,16 +39,6 @@ type ClusterHistoryRangeFieldsProps = {
   onChange: (range: { start: Date; end: Date }) => void
   availableFrom?: number
   disabled?: boolean
-}
-
-function toInputValue(date: Date): string {
-  return dayjs(date).format('YYYY-MM-DDTHH:mm:ss')
-}
-
-function fromInputValue(value: string): Date | undefined {
-  if (!value) return undefined
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? undefined : date
 }
 
 export function ClusterHistoryRangeFields(
@@ -69,41 +60,41 @@ export function ClusterHistoryRangeFields(
       <div className={clusterExportDialogLayout.rangeGrid}>
         <Field>
           <FieldLabel htmlFor={startId}>{t('Start time')}</FieldLabel>
-          <Input
+          <DateTimePicker
             id={startId}
-            type='datetime-local'
-            step={1}
-            value={toInputValue(props.start)}
-            onChange={(event) => {
-              const start = fromInputValue(event.target.value)
+            value={props.start}
+            onChange={(start) => {
               if (start) {
                 setSelectedPreset(null)
                 props.onChange({ start, end: props.end })
               }
             }}
             disabled={props.disabled}
+            clearable={false}
+            precision='second'
+            placeholder={t('Select start time')}
           />
         </Field>
         <Field>
           <FieldLabel htmlFor={endId}>{t('End time')}</FieldLabel>
-          <Input
+          <DateTimePicker
             id={endId}
-            type='datetime-local'
-            step={1}
-            value={toInputValue(props.end)}
-            onChange={(event) => {
-              const end = fromInputValue(event.target.value)
+            value={props.end}
+            onChange={(end) => {
               if (end) {
                 setSelectedPreset(null)
                 props.onChange({ start: props.start, end })
               }
             }}
             disabled={props.disabled}
+            clearable={false}
+            precision='second'
+            placeholder={t('Select end time')}
           />
         </Field>
       </div>
 
-      <div className='flex flex-wrap gap-2'>
+      <div className='grid grid-cols-2 gap-2 sm:flex'>
         {[
           { label: 'Last 15 minutes', minutes: 15 },
           { label: 'Last hour', minutes: 60 },
@@ -114,10 +105,13 @@ export function ClusterHistoryRangeFields(
           <Button
             key={preset.minutes}
             type='button'
-            variant={
-              selectedPreset === preset.minutes ? 'secondary' : 'outline'
-            }
+            variant={selectedPreset === preset.minutes ? 'default' : 'outline'}
             size='sm'
+            className={cn(
+              'flex-1',
+              selectedPreset === preset.minutes &&
+                'ring-ring ring-2 ring-offset-2'
+            )}
             onClick={() => applyQuickRange(preset.minutes)}
             disabled={props.disabled}
             aria-pressed={selectedPreset === preset.minutes}

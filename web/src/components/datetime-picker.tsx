@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ChevronDownIcon } from 'lucide-react'
+import { ArrowDown01Icon, Cancel01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import * as React from 'react'
 import { enUS, fr, ja, ru, vi, zhCN } from 'react-day-picker/locale'
 import { useTranslation } from 'react-i18next'
@@ -32,6 +33,12 @@ import {
 import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
 
+import {
+  applyDateTimePickerTime,
+  dateTimePickerTimeValue,
+  type DateTimePickerPrecision,
+} from './lib/datetime-picker'
+
 const calendarLocales = {
   en: enUS,
   zh: zhCN,
@@ -46,47 +53,45 @@ interface DateTimePickerProps {
   onChange?: (date: Date | undefined) => void
   placeholder?: string
   className?: string
+  id?: string
+  precision?: DateTimePickerPrecision
+  clearable?: boolean
+  disabled?: boolean
 }
 
-export function DateTimePicker({
-  value,
-  onChange,
-  placeholder,
-  className,
-}: DateTimePickerProps) {
+export function DateTimePicker(props: DateTimePickerProps) {
   const { t, i18n } = useTranslation()
-  const placeholderText = placeholder ?? t('Select date')
+  const precision = props.precision ?? 'minute'
+  const placeholderText = props.placeholder ?? t('Select date')
   const calendarLocale =
     calendarLocales[i18n.language as keyof typeof calendarLocales] ?? enUS
   const currentYear = new Date().getFullYear()
   const [open, setOpen] = React.useState(false)
-  const [date, setDate] = React.useState<Date | undefined>(value)
-  const [month, setMonth] = React.useState<Date | undefined>(value)
-  const [time, setTime] = React.useState<string>('00:00')
+  const [date, setDate] = React.useState<Date | undefined>(props.value)
+  const [month, setMonth] = React.useState<Date | undefined>(props.value)
+  const [time, setTime] = React.useState<string>(() =>
+    dateTimePickerTimeValue(props.value, precision)
+  )
 
   React.useEffect(() => {
-    setDate(value)
-    setMonth(value)
-    if (value) {
-      const hours = value.getHours().toString().padStart(2, '0')
-      const minutes = value.getMinutes().toString().padStart(2, '0')
-      setTime(`${hours}:${minutes}`)
+    setDate(props.value)
+    setMonth(props.value)
+    if (props.value) {
+      setTime(dateTimePickerTimeValue(props.value, precision))
     }
-  }, [value])
+  }, [precision, props.value])
 
   const handleDateSelect = (selectedDate: Date | undefined) => {
     if (selectedDate) {
-      const [hours, minutes] = time.split(':').map(Number)
-      const newDate = new Date(selectedDate)
-      newDate.setHours(hours, minutes, 0, 0)
+      const newDate = applyDateTimePickerTime(selectedDate, time)
       setDate(newDate)
       setMonth(newDate)
-      onChange?.(newDate)
+      props.onChange?.(newDate)
       setOpen(false)
     } else {
       setDate(undefined)
       setMonth(undefined)
-      onChange?.(undefined)
+      props.onChange?.(undefined)
     }
   }
 
@@ -95,23 +100,21 @@ export function DateTimePicker({
     setTime(newTime)
 
     if (date) {
-      const [hours, minutes] = newTime.split(':').map(Number)
-      const newDate = new Date(date)
-      newDate.setHours(hours, minutes, 0, 0)
+      const newDate = applyDateTimePickerTime(date, newTime)
       setDate(newDate)
-      onChange?.(newDate)
+      props.onChange?.(newDate)
     }
   }
 
   const handleClear = () => {
     setDate(undefined)
     setMonth(undefined)
-    setTime('00:00')
-    onChange?.(undefined)
+    setTime(dateTimePickerTimeValue(undefined, precision))
+    props.onChange?.(undefined)
   }
 
   return (
-    <div className={cn('flex gap-2', className)}>
+    <div className={cn('flex gap-2', props.className)}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           render={
@@ -121,11 +124,18 @@ export function DateTimePicker({
                 'flex-1 justify-between font-normal',
                 !date && 'text-muted-foreground'
               )}
+              id={props.id}
+              disabled={props.disabled}
             />
           }
         >
           {date ? dayjs(date).format('YYYY-MM-DD') : placeholderText}
-          <ChevronDownIcon className='h-4 w-4 opacity-50' />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            strokeWidth={2}
+            data-icon='inline-end'
+            className='opacity-50'
+          />
         </PopoverTrigger>
         <PopoverContent className='w-auto overflow-hidden p-0' align='start'>
           <Calendar
@@ -143,23 +153,25 @@ export function DateTimePicker({
       </Popover>
       <Input
         type='time'
+        step={precision === 'second' ? 1 : undefined}
         value={time}
         onChange={handleTimeChange}
         className='w-32 appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none'
-        disabled={!date}
+        disabled={!date || props.disabled}
       />
-      {date && (
+      {date && (props.clearable ?? true) ? (
         <Button
           type='button'
           variant='outline'
           size='icon'
           onClick={handleClear}
           className='shrink-0'
-          aria-label='Clear'
+          aria-label={t('Clear')}
+          disabled={props.disabled}
         >
-          <span aria-hidden='true'>✕</span>
+          <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
         </Button>
-      )}
+      ) : null}
     </div>
   )
 }

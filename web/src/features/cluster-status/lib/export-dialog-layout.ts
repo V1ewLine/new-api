@@ -20,6 +20,6 @@ export const clusterExportDialogLayout = {
   content:
     'max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl sm:gap-5 sm:p-6',
   footer: 'sm:-mx-6 sm:-mb-6 sm:p-6',
-  rangeGrid: 'grid gap-4 md:grid-cols-2',
+  rangeGrid: 'grid gap-2.5',
   rangeMeta: 'flex flex-col gap-1',
 } as const
