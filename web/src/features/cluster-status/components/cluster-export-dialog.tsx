@@ -54,6 +54,7 @@ import {
   type ClusterExportContext,
   validateClusterHistoryRange,
 } from '../lib/export'
+import { clusterExportDialogLayout } from '../lib/export-dialog-layout'
 import { clusterQueryKeys } from '../query-keys'
 import type {
   ClusterExportFormat,
@@ -256,10 +257,13 @@ export function ClusterExportDialog(props: ClusterExportDialogProps) {
 
   return (
     <Dialog open={props.open} onOpenChange={handleOpenChange}>
-      <DialogContent showCloseButton={!exporting}>
-        <DialogHeader>
+      <DialogContent
+        className={clusterExportDialogLayout.content}
+        showCloseButton={!exporting}
+      >
+        <DialogHeader className='pr-8'>
           <DialogTitle>{t('Export Cluster Data')}</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className='leading-relaxed'>
             {source === 'latest'
               ? t(
                   'Exports the latest stored snapshot. Agent addresses, Bearer Tokens, and diagnostic payloads are excluded.'
@@ -356,7 +360,7 @@ export function ClusterExportDialog(props: ClusterExportDialogProps) {
           {exporting ? t('Exporting...') : null}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className={clusterExportDialogLayout.footer}>
           <Button variant='outline' onClick={closeDialog} disabled={exporting}>
             {t('Cancel')}
           </Button>

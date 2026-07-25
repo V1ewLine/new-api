@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input'
 import dayjs from '@/lib/dayjs'
 
 import { buildClusterHistoryPresetRange } from '../lib/export'
+import { clusterExportDialogLayout } from '../lib/export-dialog-layout'
 
 type ClusterHistoryRangeFieldsProps = {
   start: Date
@@ -65,7 +66,7 @@ export function ClusterHistoryRangeFields(
 
   return (
     <FieldGroup className='gap-3'>
-      <div className='grid gap-3 sm:grid-cols-2'>
+      <div className={clusterExportDialogLayout.rangeGrid}>
         <Field>
           <FieldLabel htmlFor={startId}>{t('Start time')}</FieldLabel>
           <Input
@@ -126,15 +127,19 @@ export function ClusterHistoryRangeFields(
         ))}
       </div>
 
-      <FieldDescription>
-        {t('Times use your browser timezone: {{timezone}}', { timezone })}
-        {props.availableFrom
-          ? ` · ${t('Available from {{time}}', {
+      <FieldDescription className={clusterExportDialogLayout.rangeMeta}>
+        <span>
+          {t('Times use your browser timezone: {{timezone}}', { timezone })}
+        </span>
+        {props.availableFrom ? (
+          <span>
+            {t('Available from {{time}}', {
               time: dayjs
                 .unix(props.availableFrom)
                 .format('YYYY-MM-DD HH:mm:ss'),
-            })}`
-          : null}
+            })}
+          </span>
+        ) : null}
       </FieldDescription>
     </FieldGroup>
   )
