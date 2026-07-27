@@ -4,12 +4,14 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	appi18n "github.com/QuantumNous/new-api/i18n"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
@@ -45,6 +47,53 @@ func performRateLimitRequest(router http.Handler, path string, remoteAddr string
 	return recorder
 }
 
+func performLoginRateLimitRequest(router http.Handler, remoteAddr string, username string) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(
+		http.MethodPost,
+		passwordLoginAPIRequestPath,
+		strings.NewReader(`{"username":"`+username+`","password":"test-password"}`),
+	)
+	request.RemoteAddr = remoteAddr
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept-Language", "zh-CN")
+	router.ServeHTTP(recorder, request)
+	return recorder
+}
+
+func useLoginRateLimitSettings(
+	t *testing.T,
+	globalMaximum int,
+	globalDuration int64,
+	criticalMaximum int,
+	criticalDuration int64,
+) {
+	t.Helper()
+
+	previousGlobalEnabled := common.GlobalApiRateLimitEnable
+	previousGlobalMaximum := common.GlobalApiRateLimitNum
+	previousGlobalDuration := common.GlobalApiRateLimitDuration
+	previousCriticalEnabled := common.CriticalRateLimitEnable
+	previousCriticalMaximum := common.CriticalRateLimitNum
+	previousCriticalDuration := common.CriticalRateLimitDuration
+
+	common.GlobalApiRateLimitEnable = true
+	common.GlobalApiRateLimitNum = globalMaximum
+	common.GlobalApiRateLimitDuration = globalDuration
+	common.CriticalRateLimitEnable = true
+	common.CriticalRateLimitNum = criticalMaximum
+	common.CriticalRateLimitDuration = criticalDuration
+
+	t.Cleanup(func() {
+		common.GlobalApiRateLimitEnable = previousGlobalEnabled
+		common.GlobalApiRateLimitNum = previousGlobalMaximum
+		common.GlobalApiRateLimitDuration = previousGlobalDuration
+		common.CriticalRateLimitEnable = previousCriticalEnabled
+		common.CriticalRateLimitNum = previousCriticalMaximum
+		common.CriticalRateLimitDuration = previousCriticalDuration
+	})
+}
+
 func TestRedisIPRateLimiterThresholdTTLAndNamespace(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	redisServer, _ := useRateLimitMiniRedis(t)
@@ -71,6 +120,101 @@ func TestRedisIPRateLimiterThresholdTTLAndNamespace(t *testing.T) {
 	assert.Equal(t, "3", count)
 	assert.Equal(t, 37*time.Second, redisServer.TTL(key))
 	assert.True(t, redisServer.Exists(legacyKey), "the v2 counter must not touch an old list key")
+}
+
+func TestLoginRateLimitIsolatesAccountsBehindSharedProxy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	redisServer, _ := useRateLimitMiniRedis(t)
+	useLoginRateLimitSettings(t, 10, 60, 1, 47)
+	require.NoError(t, appi18n.Init())
+
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.Use(GlobalAPIRateLimit())
+	var handledUsernames []string
+	router.POST(passwordLoginAPIRequestPath, LoginRateLimit(), func(c *gin.Context) {
+		var request struct {
+			Username string `json:"username"`
+		}
+		require.NoError(t, common.DecodeJson(c.Request.Body, &request))
+		handledUsernames = append(handledUsernames, request.Username)
+		c.Status(http.StatusNoContent)
+	})
+
+	sharedProxy := "10.1.100.21:12345"
+	assert.Equal(t, http.StatusNoContent, performLoginRateLimitRequest(router, sharedProxy, "root").Code)
+
+	limitedResponse := performLoginRateLimitRequest(router, sharedProxy, " ROOT ")
+	assert.Equal(t, http.StatusTooManyRequests, limitedResponse.Code)
+	assert.Equal(t, "47", limitedResponse.Header().Get("Retry-After"))
+	assert.JSONEq(
+		t,
+		`{"success":false,"code":"LOGIN_RATE_LIMITED","message":"登录尝试过于频繁，请在 47 秒后重试。"}`,
+		limitedResponse.Body.String(),
+	)
+
+	assert.Equal(t, http.StatusNoContent, performLoginRateLimitRequest(router, sharedProxy, "another-user").Code)
+	assert.Equal(t, []string{"root", "another-user"}, handledUsernames)
+	assert.True(t, redisServer.Exists(loginAccountRateLimitKey("10.1.100.21", "root")))
+	assert.True(t, redisServer.Exists(loginAccountRateLimitKey("10.1.100.21", "another-user")))
+}
+
+func TestLoginRateLimitIgnoresLegacySharedGlobalAndCriticalBuckets(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	redisServer, _ := useRateLimitMiniRedis(t)
+	useLoginRateLimitSettings(t, 5, 60, 5, 120)
+
+	clientIP := "10.1.100.21"
+	globalKey := redisIPRateLimitKey("GA", clientIP)
+	criticalKey := redisIPRateLimitKey("CT", clientIP)
+	redisServer.Set(globalKey, "999")
+	redisServer.SetTTL(globalKey, 60*time.Second)
+	redisServer.Set(criticalKey, "999")
+	redisServer.SetTTL(criticalKey, 120*time.Second)
+
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.Use(GlobalAPIRateLimit())
+	router.GET("/api/status", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	router.POST(passwordLoginAPIRequestPath, LoginRateLimit(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	assert.Equal(
+		t,
+		http.StatusTooManyRequests,
+		performRateLimitRequest(router, "/api/status", clientIP+":12345").Code,
+	)
+	assert.Equal(
+		t,
+		http.StatusNoContent,
+		performLoginRateLimitRequest(router, clientIP+":12345", "root").Code,
+	)
+}
+
+func TestLoginRateLimitRetainsEndpointWideIPProtection(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	_, _ = useRateLimitMiniRedis(t)
+	useLoginRateLimitSettings(t, 2, 31, 10, 120)
+	require.NoError(t, appi18n.Init())
+
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.Use(GlobalAPIRateLimit())
+	router.POST(passwordLoginAPIRequestPath, LoginRateLimit(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	sharedProxy := "10.1.100.21:12345"
+	assert.Equal(t, http.StatusNoContent, performLoginRateLimitRequest(router, sharedProxy, "first-user").Code)
+	assert.Equal(t, http.StatusNoContent, performLoginRateLimitRequest(router, sharedProxy, "second-user").Code)
+
+	limitedResponse := performLoginRateLimitRequest(router, sharedProxy, "third-user")
+	assert.Equal(t, http.StatusTooManyRequests, limitedResponse.Code)
+	assert.Equal(t, "31", limitedResponse.Header().Get("Retry-After"))
+	assert.Contains(t, limitedResponse.Body.String(), `"code":"LOGIN_RATE_LIMITED"`)
 }
 
 func TestRedisUserRateLimiterUsesSharedFixedWindow(t *testing.T) {

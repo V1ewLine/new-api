@@ -1,18 +1,28 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/gin-gonic/gin"
 )
 
-const redisRateLimitNamespace = "rateLimit:v2"
+const (
+	redisRateLimitNamespace     = "rateLimit:v2"
+	loginIPRateLimitMark        = "LGI"
+	loginAccountRateLimitMark   = "LGA"
+	passwordLoginAPIRequestPath = "/api/user/login"
+)
 
 // Redis rate limiting intentionally uses a fixed window. The single Lua script
 // makes increment, expiry, and the limit decision atomic, while retaining the
@@ -47,6 +57,16 @@ func redisIPRateLimitKey(mark string, clientIP string) string {
 
 func redisUserRateLimitKey(mark string, userID int) string {
 	return fmt.Sprintf("%s:user:%s:%d", redisRateLimitNamespace, mark, userID)
+}
+
+func loginAccountRateLimitKey(clientIP string, username string) string {
+	normalizedUsername := strings.ToLower(strings.TrimSpace(username))
+	identityHash := sha256.Sum256([]byte(clientIP + "\x00" + normalizedUsername))
+	return fmt.Sprintf("%s:login:%s:%x", redisRateLimitNamespace, loginAccountRateLimitMark, identityHash)
+}
+
+func isPasswordLoginAPIRequest(c *gin.Context) bool {
+	return c.Request.Method == http.MethodPost && c.Request.URL.Path == passwordLoginAPIRequestPath
 }
 
 func redisReplyInteger(value interface{}) (int64, error) {
@@ -166,9 +186,124 @@ func GlobalWebRateLimit() func(c *gin.Context) {
 
 func GlobalAPIRateLimit() func(c *gin.Context) {
 	if common.GlobalApiRateLimitEnable {
-		return rateLimitFactory(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "GA")
+		globalLimiter := rateLimitFactory(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "GA")
+		return func(c *gin.Context) {
+			if isPasswordLoginAPIRequest(c) {
+				c.Next()
+				return
+			}
+			globalLimiter(c)
+		}
 	}
 	return defNext
+}
+
+// LoginRateLimit keeps password login independent from the shared critical
+// operation bucket. A broader IP bucket still protects the endpoint from
+// username spraying, while the account bucket prevents one user behind a
+// reverse proxy from consuming every other user's login allowance.
+func LoginRateLimit() gin.HandlerFunc {
+	inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
+
+	return func(c *gin.Context) {
+		if common.GlobalApiRateLimitEnable {
+			allowed, retryAfterSeconds, err := takeRateLimit(
+				c,
+				redisIPRateLimitKey(loginIPRateLimitMark, c.ClientIP()),
+				common.GlobalApiRateLimitNum,
+				common.GlobalApiRateLimitDuration,
+			)
+			if err != nil {
+				logger.LogError(c.Request.Context(), fmt.Sprintf("login IP rate limit check failed: %v", err))
+				c.AbortWithStatus(http.StatusInternalServerError)
+				return
+			}
+			if !allowed {
+				writeLoginRateLimited(c, retryAfterSeconds)
+				return
+			}
+		}
+
+		if !common.CriticalRateLimitEnable {
+			c.Next()
+			return
+		}
+
+		username := readLoginRateLimitUsername(c)
+		if username == "" {
+			c.Next()
+			return
+		}
+
+		allowed, retryAfterSeconds, err := takeRateLimit(
+			c,
+			loginAccountRateLimitKey(c.ClientIP(), username),
+			common.CriticalRateLimitNum,
+			common.CriticalRateLimitDuration,
+		)
+		if err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("login account rate limit check failed: %v", err))
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		if !allowed {
+			writeLoginRateLimited(c, retryAfterSeconds)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func readLoginRateLimitUsername(c *gin.Context) string {
+	if c.Request.Body == nil {
+		return ""
+	}
+
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return ""
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(body))
+
+	var request struct {
+		Username string `json:"username"`
+	}
+	if err := common.Unmarshal(body, &request); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(request.Username)
+}
+
+func takeRateLimit(c *gin.Context, key string, maxRequestNum int, duration int64) (bool, int64, error) {
+	if common.RedisEnabled {
+		allowed, _, retryAfterSeconds, err := redisFixedWindowTake(
+			c.Request.Context(),
+			key,
+			maxRequestNum,
+			duration,
+		)
+		return allowed, retryAfterSeconds, err
+	}
+
+	if inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
+		return true, duration, nil
+	}
+	return false, duration, nil
+}
+
+func writeLoginRateLimited(c *gin.Context, retryAfterSeconds int64) {
+	if retryAfterSeconds <= 0 {
+		retryAfterSeconds = 1
+	}
+	c.Header("Retry-After", strconv.FormatInt(retryAfterSeconds, 10))
+	c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+		"success": false,
+		"code":    "LOGIN_RATE_LIMITED",
+		"message": common.TranslateMessage(c, i18n.MsgLoginRateLimitReached, map[string]any{
+			"Seconds": retryAfterSeconds,
+		}),
+	})
 }
 
 func CriticalRateLimit() func(c *gin.Context) {
