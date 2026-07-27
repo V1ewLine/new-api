@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowRight,
   AlertCircle,
@@ -128,8 +128,10 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import {
   fetchModels,
+  detectChannelResponsesCapabilities,
   getAllModels,
   getChannel,
+  getChannelResponsesCapabilities,
   getChannelKey,
   getGroups,
   getPrefillGroups,
@@ -170,7 +172,11 @@ import {
   collectInvalidStatusCodeEntries,
   collectNewDisallowedStatusCodeRedirects,
 } from '../../lib/status-code-risk-guard'
-import type { Channel } from '../../types'
+import type {
+  Channel,
+  ResponsesCapabilityMode,
+  ResponsesUpstreamMode,
+} from '../../types'
 import { useChannels } from '../channels-provider'
 import { AdvancedCustomEditorDialog } from '../dialogs/advanced-custom-editor-dialog'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
@@ -194,6 +200,32 @@ type ChannelMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentRow?: Channel | null
+}
+
+function ResponsesCapabilityModeBadge({
+  mode,
+}: {
+  mode: ResponsesCapabilityMode
+}) {
+  const { t } = useTranslation()
+  let label = t('Unknown')
+  if (mode === 'native') {
+    label = t('Native Responses')
+  } else if (mode === 'chat_completions') {
+    label = t('Chat Completions compatibility')
+  }
+
+  return (
+    <Badge
+      variant={mode === 'unknown' ? 'outline' : 'secondary'}
+      className={cn(
+        mode === 'native' && 'bg-emerald-500/10 text-emerald-700',
+        mode === 'chat_completions' && 'bg-blue-500/10 text-blue-700'
+      )}
+    >
+      {label}
+    </Badge>
+  )
 }
 
 type ModelMappingGuardrail = {
@@ -286,6 +318,7 @@ const SENSITIVE_FORM_FIELDS = [
   'pass_through_body_enabled',
   'system_prompt',
   'system_prompt_override',
+  'responses_upstream_mode',
   'allow_service_tier',
   'disable_store',
   'allow_safety_identifier',
@@ -338,6 +371,8 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
+    values.responses_upstream_mode === 'native' ||
+    values.responses_upstream_mode === 'chat_completions' ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
@@ -611,6 +646,11 @@ export function ChannelMutateDrawer({
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
     ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
   )
+  const canOperateChannel = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.OPERATE
+  )
   const canRevealChannelKey = currentUser?.role === ROLE.SUPER_ADMIN
   const [fetchModelsDialogOpen, setFetchModelsDialogOpen] = useState(false)
   const [channelKey, setChannelKey] = useState<string | null>(null)
@@ -746,6 +786,8 @@ export function ChannelMutateDrawer({
   const currentProxy = form.watch('proxy')
   const currentSystemPrompt = form.watch('system_prompt')
   const currentSystemPromptOverride = form.watch('system_prompt_override')
+  const currentResponsesUpstreamMode =
+    form.watch('responses_upstream_mode') || 'auto'
   const currentAllowServiceTier = form.watch('allow_service_tier')
   const currentDisableStore = form.watch('disable_store')
   const currentAllowSafetyIdentifier = form.watch('allow_safety_identifier')
@@ -759,6 +801,95 @@ export function ChannelMutateDrawer({
   const currentUpstreamModelUpdateIgnoredModels = form.watch(
     'upstream_model_update_ignored_models'
   )
+  const responsesCapabilitiesQuery = useQuery({
+    queryKey: [
+      ...channelsQueryKeys.detail(channelId || 0),
+      'responses-capabilities',
+    ],
+    queryFn: () => getChannelResponsesCapabilities(channelId || 0),
+    enabled:
+      open &&
+      isEditing &&
+      Boolean(channelId) &&
+      currentResponsesUpstreamMode === 'auto',
+  })
+  const latestResponsesCapability = useMemo(() => {
+    const capabilities =
+      responsesCapabilitiesQuery.data?.data?.capabilities || []
+    return [...capabilities]
+      .sort((left, right) => right.updated_at - left.updated_at)
+      .at(0)
+  }, [responsesCapabilitiesQuery.data?.data?.capabilities])
+  const detectResponsesCapabilityMutation = useMutation({
+    mutationFn: () =>
+      detectChannelResponsesCapabilities(
+        channelId || 0,
+        currentTestModel || undefined
+      ),
+    onSuccess: (response) => {
+      void queryClient.invalidateQueries({
+        queryKey: [
+          ...channelsQueryKeys.detail(channelId || 0),
+          'responses-capabilities',
+        ],
+      })
+      if (!response.success) {
+        toast.error(response.message || t('Capability detection failed'))
+        return
+      }
+      if (response.message) {
+        toast.warning(t('Capability detection completed with warnings'))
+        return
+      }
+      toast.success(t('Capability detected'))
+    },
+    onError: () => {
+      toast.error(t('Capability detection failed'))
+    },
+  })
+  let responsesUpstreamModeDescription = t(
+    'Probe the selected model once and cache separate streaming and non-streaming capabilities.'
+  )
+  if (currentResponsesUpstreamMode === 'native') {
+    responsesUpstreamModeDescription = t(
+      'Always forward /v1/responses to the upstream Responses endpoint.'
+    )
+  } else if (currentResponsesUpstreamMode === 'chat_completions') {
+    responsesUpstreamModeDescription = t(
+      'Always convert /v1/responses requests and responses through Chat Completions.'
+    )
+  }
+  let responsesCapabilityStatusContent: ReactNode = (
+    <p className='text-muted-foreground text-xs'>
+      {t(
+        'Detection sends a minimal request to the test model; ambiguous failures keep native behavior.'
+      )}
+    </p>
+  )
+  if (responsesCapabilitiesQuery.isLoading) {
+    responsesCapabilityStatusContent = <Skeleton className='h-8 w-full' />
+  } else if (latestResponsesCapability) {
+    responsesCapabilityStatusContent = (
+      <div className='grid gap-2 sm:grid-cols-2'>
+        <div className='flex items-center justify-between gap-2 rounded-md border px-2.5 py-2'>
+          <span className='text-muted-foreground text-xs'>
+            {t('Non-streaming')}
+          </span>
+          <ResponsesCapabilityModeBadge
+            mode={latestResponsesCapability.non_stream_mode}
+          />
+        </div>
+        <div className='flex items-center justify-between gap-2 rounded-md border px-2.5 py-2'>
+          <span className='text-muted-foreground text-xs'>
+            {t('Streaming')}
+          </span>
+          <ResponsesCapabilityModeBadge
+            mode={latestResponsesCapability.stream_mode}
+          />
+        </div>
+      </div>
+    )
+  }
   const shouldPreviewUnsavedModels =
     !isEditing ||
     (currentType === CHANNEL_TYPE_ADVANCED_CUSTOM && canEditSensitive)
@@ -996,7 +1127,8 @@ export function ChannelMutateDrawer({
     currentPriority ||
     currentWeight ||
     currentTestModel?.trim() ||
-    (currentAutoBan ?? 1) !== 1
+    (currentAutoBan ?? 1) !== 1 ||
+    currentResponsesUpstreamMode !== 'auto'
   )
   const internalNotesConfigured = Boolean(
     currentTag?.trim() || currentRemark?.trim()
@@ -3699,6 +3831,111 @@ export function ChannelMutateDrawer({
                                 </FormItem>
                               )}
                             />
+
+                            <FormField
+                              control={form.control}
+                              name='responses_upstream_mode'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>
+                                    {t('Responses upstream protocol')}
+                                  </FormLabel>
+                                  <Select
+                                    items={[
+                                      {
+                                        value: 'auto',
+                                        label: t('Automatic detection'),
+                                      },
+                                      {
+                                        value: 'native',
+                                        label: t('Native Responses'),
+                                      },
+                                      {
+                                        value: 'chat_completions',
+                                        label: t(
+                                          'Chat Completions compatibility'
+                                        ),
+                                      },
+                                    ]}
+                                    value={field.value || 'auto'}
+                                    onValueChange={(value) =>
+                                      field.onChange(
+                                        value as ResponsesUpstreamMode
+                                      )
+                                    }
+                                    disabled={sensitiveLocked}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger className='w-full'>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent alignItemWithTrigger={false}>
+                                      <SelectGroup>
+                                        <SelectItem value='auto'>
+                                          {t('Automatic detection')}
+                                        </SelectItem>
+                                        <SelectItem value='native'>
+                                          {t('Native Responses')}
+                                        </SelectItem>
+                                        <SelectItem value='chat_completions'>
+                                          {t('Chat Completions compatibility')}
+                                        </SelectItem>
+                                      </SelectGroup>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormDescription>
+                                    {responsesUpstreamModeDescription}
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            {isEditing &&
+                              currentResponsesUpstreamMode === 'auto' && (
+                                <div className='border-border/60 bg-muted/20 space-y-3 rounded-lg border p-3'>
+                                  <div className='flex flex-wrap items-center justify-between gap-2'>
+                                    <div>
+                                      <div className='text-sm font-medium'>
+                                        {t('Responses capability status')}
+                                      </div>
+                                      <div className='text-muted-foreground text-xs'>
+                                        {latestResponsesCapability
+                                          ? t('Detected for {{model}}', {
+                                              model:
+                                                latestResponsesCapability.model,
+                                            })
+                                          : t('Not detected yet')}
+                                      </div>
+                                    </div>
+                                    <Button
+                                      type='button'
+                                      variant='outline'
+                                      size='sm'
+                                      disabled={
+                                        detectResponsesCapabilityMutation.isPending ||
+                                        !channelId ||
+                                        !canOperateChannel
+                                      }
+                                      onClick={() =>
+                                        detectResponsesCapabilityMutation.mutate()
+                                      }
+                                    >
+                                      {detectResponsesCapabilityMutation.isPending ? (
+                                        <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                      ) : (
+                                        <RefreshCw className='mr-2 h-4 w-4' />
+                                      )}
+                                      {detectResponsesCapabilityMutation.isPending
+                                        ? t('Detecting...')
+                                        : t('Re-detect')}
+                                    </Button>
+                                  </div>
+
+                                  {responsesCapabilityStatusContent}
+                                </div>
+                              )}
 
                             <FormField
                               control={form.control}

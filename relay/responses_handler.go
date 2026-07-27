@@ -10,7 +10,6 @@ import (
 	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -81,7 +80,8 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
-	if channel.SupportsOpenAIResponsesViaChatCompletions(adaptor) {
+	if info.RelayMode == relayconstant.RelayModeResponses &&
+		ResolveResponsesUpstreamMode(c, info) == dto.ResponsesUpstreamModeChatCompletions {
 		usage, newAPIError := responsesViaChatCompletions(c, info, adaptor, request)
 		if newAPIError != nil {
 			return newAPIError

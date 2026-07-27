@@ -1,5 +1,8 @@
 # OpenAI Responses 通用 Chat Completions 兼容层
 
+> 后续演进：本文记录通用协议转换层的第一版实现。渠道能力不再通过第 3 节所述的内置渠道声明进行判断，现已改为“管理员策略 + 实际探测 + 数据库缓存”。最新判定逻辑见
+> [005-responses-upstream-protocol-auto-detection.md](./005-responses-upstream-protocol-auto-detection.md)。
+
 ## 1. 开发目标
 
 为只提供 OpenAI Chat Completions 协议的上游渠道补充 `/v1/responses` 兼容能力，使客户端不需要因为模型或渠道变化而切换调用协议。

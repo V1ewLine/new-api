@@ -10,7 +10,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/deepseek"
 	"github.com/QuantumNous/new-api/relay/channel/moonshot"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -55,7 +54,6 @@ func TestResponsesViaChatCompletionsNonStreamDeepSeek(t *testing.T) {
 	c, recorder := newResponsesViaChatTestContext(request)
 	adaptor := &deepseek.Adaptor{}
 
-	require.True(t, channel.SupportsOpenAIResponsesViaChatCompletions(adaptor))
 	usage, relayErr := responsesViaChatCompletions(c, info, adaptor, request)
 
 	require.Nil(t, relayErr)
@@ -69,6 +67,7 @@ func TestResponsesViaChatCompletionsNonStreamDeepSeek(t *testing.T) {
 	require.Equal(t, "你好", upstreamRequest.request.Messages[0].StringContent())
 	require.Equal(t, types.RelayFormatOpenAI, info.FinalRequestRelayFormat)
 	require.Equal(t, relayconstant.RelayModeResponses, info.RelayMode)
+	require.Equal(t, types.RelayFormat(types.RelayFormatOpenAIResponses), info.RelayFormat)
 	require.Equal(t, "/v1/responses", info.RequestURLPath)
 	require.Contains(t, recorder.Body.String(), `"object":"response"`)
 	require.Contains(t, recorder.Body.String(), `"text":"你好"`)
@@ -110,7 +109,6 @@ func TestResponsesViaChatCompletionsStreamMoonshot(t *testing.T) {
 	c, recorder := newResponsesViaChatTestContext(request)
 	adaptor := &moonshot.Adaptor{}
 
-	require.True(t, channel.SupportsOpenAIResponsesViaChatCompletions(adaptor))
 	usage, relayErr := responsesViaChatCompletions(c, info, adaptor, request)
 
 	require.Nil(t, relayErr)

@@ -27,7 +27,11 @@ import {
 } from '@/lib/admin-permissions'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { createChannel, updateChannel } from '../api'
+import {
+  createChannel,
+  detectChannelResponsesCapabilities,
+  updateChannel,
+} from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
   transformFormDataToCreatePayload,
@@ -88,6 +92,11 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
     ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
   )
+  const canOperateChannel = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.OPERATE
+  )
 
   return useMutation({
     mutationFn: async (data: ChannelFormValues): Promise<string> => {
@@ -122,6 +131,16 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
         if (!response.success) {
           throw new Error(response.message || t(ERROR_MESSAGES.UPDATE_FAILED))
         }
+        if (
+          data.responses_upstream_mode === 'auto' &&
+          data.test_model?.trim() &&
+          canOperateChannel
+        ) {
+          void detectChannelResponsesCapabilities(
+            props.currentRow.id,
+            data.test_model
+          ).catch(() => undefined)
+        }
         return SUCCESS_MESSAGES.UPDATED
       }
 
@@ -129,6 +148,18 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
       const response = await createChannel(payload)
       if (!response.success) {
         throw new Error(response.message || t(ERROR_MESSAGES.CREATE_FAILED))
+      }
+      if (
+        data.responses_upstream_mode === 'auto' &&
+        data.test_model?.trim() &&
+        canOperateChannel
+      ) {
+        for (const channelId of response.data?.channel_ids || []) {
+          void detectChannelResponsesCapabilities(
+            channelId,
+            data.test_model
+          ).catch(() => undefined)
+        }
       }
       return SUCCESS_MESSAGES.CREATED
     },

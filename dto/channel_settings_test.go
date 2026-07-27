@@ -9,6 +9,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestResponsesUpstreamModeValidationAndNormalization(t *testing.T) {
+	tests := []struct {
+		mode       ResponsesUpstreamMode
+		valid      bool
+		normalized ResponsesUpstreamMode
+	}{
+		{mode: "", valid: true, normalized: ResponsesUpstreamModeAuto},
+		{mode: ResponsesUpstreamModeAuto, valid: true, normalized: ResponsesUpstreamModeAuto},
+		{mode: ResponsesUpstreamModeNative, valid: true, normalized: ResponsesUpstreamModeNative},
+		{mode: ResponsesUpstreamModeChatCompletions, valid: true, normalized: ResponsesUpstreamModeChatCompletions},
+		{mode: "unexpected", valid: false, normalized: ResponsesUpstreamModeAuto},
+	}
+
+	for _, test := range tests {
+		assert.Equal(t, test.valid, test.mode.IsValid())
+		assert.Equal(t, test.normalized, test.mode.Normalize())
+	}
+}
+
 func TestAdvancedCustomValidateResponsesToChatConverterPath(t *testing.T) {
 	valid := &AdvancedCustomConfig{
 		Routes: []AdvancedCustomRoute{

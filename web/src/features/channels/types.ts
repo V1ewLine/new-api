@@ -86,6 +86,44 @@ export interface ChannelSettings {
   pass_through_body_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  responses_upstream_mode?: ResponsesUpstreamMode
+}
+
+export type ResponsesUpstreamMode = 'auto' | 'native' | 'chat_completions'
+
+export type ResponsesCapabilityMode = 'unknown' | 'native' | 'chat_completions'
+
+export interface ChannelResponsesCapability {
+  id: number
+  channel_id: number
+  model: string
+  non_stream_mode: ResponsesCapabilityMode
+  stream_mode: ResponsesCapabilityMode
+  non_stream_detected_at: number
+  stream_detected_at: number
+  non_stream_last_error: string
+  stream_last_error: string
+  updated_at: number
+}
+
+export interface ChannelResponsesCapabilitiesResponse {
+  success: boolean
+  message?: string
+  data?: {
+    configured_mode: ResponsesUpstreamMode
+    capabilities: ChannelResponsesCapability[]
+  }
+}
+
+export interface DetectChannelResponsesCapabilitiesResponse {
+  success: boolean
+  message?: string
+  data?: {
+    requested_model: string
+    upstream_model: string
+    configured_mode: ResponsesUpstreamMode
+    capability?: ChannelResponsesCapability
+  }
 }
 
 export interface ChannelOtherSettings {

@@ -16,6 +16,8 @@ func TestChannelStatusRoutesUseOperatePermission(t *testing.T) {
 	assertChannelRoutePermission(t, http.MethodPost, "/:id/status", authz.ChannelOperate, controller.UpdateChannelStatus)
 	assertChannelRoutePermission(t, http.MethodPost, "/status/batch", authz.ChannelOperate, controller.BatchUpdateChannelStatus)
 	assertChannelRoutePermission(t, http.MethodPut, "/", authz.ChannelWrite, controller.UpdateChannel)
+	assertChannelRoutePermission(t, http.MethodPost, "/:id/responses-capabilities/detect", authz.ChannelOperate, controller.DetectChannelResponsesCapabilities)
+	assertChannelRoutePermission(t, http.MethodGet, "/:id/responses-capabilities", authz.ChannelRead, controller.GetChannelResponsesCapabilities)
 }
 
 func TestChannelDeleteRoutesUseSensitiveWritePermission(t *testing.T) {

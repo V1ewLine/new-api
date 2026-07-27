@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -702,9 +703,18 @@ func AddChannel(c *gin.Context) {
 		"type":  addChannelRequest.Channel.Type,
 		"count": len(channels),
 	})
+	channelIds := make([]int, 0, len(channels))
+	for _, channel := range channels {
+		if channel.Id > 0 {
+			channelIds = append(channelIds, channel.Id)
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data": gin.H{
+			"channel_ids": channelIds,
+		},
 	})
 	return
 }
@@ -1084,6 +1094,13 @@ func UpdateChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if channelResponsesCapabilityConfigChanged(&channel.Channel, originChannel) {
+		if err := model.DeleteChannelResponsesCapabilities([]int{channel.Id}); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		relay.InvalidateResponsesCapabilityCache(channel.Id)
+	}
 	model.InitChannelCache()
 	if proxyChanged {
 		service.InvalidateProxyClient(originProxy)
@@ -1118,6 +1135,23 @@ func UpdateChannel(c *gin.Context) {
 		"data":    channel,
 	})
 	return
+}
+
+func channelResponsesCapabilityConfigChanged(channel *model.Channel, origin *model.Channel) bool {
+	if channel == nil || origin == nil {
+		return true
+	}
+	return channel.Type != origin.Type ||
+		channel.Key != origin.Key ||
+		channel.GetBaseURL() != origin.GetBaseURL() ||
+		channel.Models != origin.Models ||
+		channel.GetModelMapping() != origin.GetModelMapping() ||
+		channel.Other != origin.Other ||
+		channel.OtherSettings != origin.OtherSettings ||
+		!equalStringPtr(channel.TestModel, origin.TestModel) ||
+		!equalStringPtr(channel.Setting, origin.Setting) ||
+		!equalStringPtr(channel.ParamOverride, origin.ParamOverride) ||
+		!equalStringPtr(channel.HeaderOverride, origin.HeaderOverride)
 }
 
 func UpdateChannelStatus(c *gin.Context) {

@@ -26,6 +26,7 @@ import type {
   Channel,
   ChannelBalanceResponse,
   ChannelOpsResponse,
+  ChannelResponsesCapabilitiesResponse,
   ChannelTestResponse,
   CopyChannelParams,
   CopyChannelResponse,
@@ -38,6 +39,7 @@ import type {
   SearchChannelsParams,
   SearchChannelsResponse,
   TagOperationParams,
+  DetectChannelResponsesCapabilitiesResponse,
 } from './types'
 
 const channelActionConfig = (
@@ -117,10 +119,34 @@ export async function getChannelOps(): Promise<ChannelOpsResponse> {
  * Create new channel(s)
  * Supports single, batch, and multi-key modes
  */
-export async function createChannel(
-  data: AddChannelRequest
-): Promise<{ success: boolean; message?: string }> {
+export async function createChannel(data: AddChannelRequest): Promise<{
+  success: boolean
+  message?: string
+  data?: { channel_ids?: number[] }
+}> {
   const res = await api.post('/api/channel', data, channelActionConfig())
+  return res.data
+}
+
+export async function getChannelResponsesCapabilities(
+  channelId: number
+): Promise<ChannelResponsesCapabilitiesResponse> {
+  const res = await api.get(
+    `/api/channel/${channelId}/responses-capabilities`,
+    channelActionConfig()
+  )
+  return res.data
+}
+
+export async function detectChannelResponsesCapabilities(
+  channelId: number,
+  model?: string
+): Promise<DetectChannelResponsesCapabilitiesResponse> {
+  const res = await api.post(
+    `/api/channel/${channelId}/responses-capabilities/detect`,
+    model?.trim() ? { model: model.trim() } : {},
+    channelActionConfig()
+  )
   return res.data
 }
 

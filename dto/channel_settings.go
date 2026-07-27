@@ -11,12 +11,39 @@ import (
 )
 
 type ChannelSettings struct {
-	ForceFormat            bool   `json:"force_format,omitempty"`
-	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
-	Proxy                  string `json:"proxy"`
-	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	ForceFormat            bool                  `json:"force_format,omitempty"`
+	ThinkingToContent      bool                  `json:"thinking_to_content,omitempty"`
+	Proxy                  string                `json:"proxy"`
+	PassThroughBodyEnabled bool                  `json:"pass_through_body_enabled,omitempty"`
+	SystemPrompt           string                `json:"system_prompt,omitempty"`
+	SystemPromptOverride   bool                  `json:"system_prompt_override,omitempty"`
+	ResponsesUpstreamMode  ResponsesUpstreamMode `json:"responses_upstream_mode,omitempty"`
+}
+
+type ResponsesUpstreamMode string
+
+const (
+	ResponsesUpstreamModeAuto            ResponsesUpstreamMode = "auto"
+	ResponsesUpstreamModeNative          ResponsesUpstreamMode = "native"
+	ResponsesUpstreamModeChatCompletions ResponsesUpstreamMode = "chat_completions"
+)
+
+func (m ResponsesUpstreamMode) Normalize() ResponsesUpstreamMode {
+	switch m {
+	case ResponsesUpstreamModeNative, ResponsesUpstreamModeChatCompletions:
+		return m
+	default:
+		return ResponsesUpstreamModeAuto
+	}
+}
+
+func (m ResponsesUpstreamMode) IsValid() bool {
+	switch m {
+	case "", ResponsesUpstreamModeAuto, ResponsesUpstreamModeNative, ResponsesUpstreamModeChatCompletions:
+		return true
+	default:
+		return false
+	}
 }
 
 type VertexKeyType string

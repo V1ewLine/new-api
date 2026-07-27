@@ -41,6 +41,18 @@ func responsesViaChatCompletions(
 		)
 	}
 
+	savedRelayMode := info.RelayMode
+	savedRelayFormat := info.RelayFormat
+	savedRequestURLPath := info.RequestURLPath
+	defer func() {
+		info.RelayMode = savedRelayMode
+		info.RelayFormat = savedRelayFormat
+		info.RequestURLPath = savedRequestURLPath
+	}()
+	info.RelayMode = relayconstant.RelayModeChatCompletions
+	info.RelayFormat = types.RelayFormatOpenAI
+	info.RequestURLPath = "/v1/chat/completions"
+
 	convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, chatRequest)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
@@ -74,15 +86,6 @@ func responsesViaChatCompletions(
 	jsonData = nil
 	info.UpstreamRequestBodySize = size
 	var requestBody io.Reader = body
-
-	savedRelayMode := info.RelayMode
-	savedRequestURLPath := info.RequestURLPath
-	defer func() {
-		info.RelayMode = savedRelayMode
-		info.RequestURLPath = savedRequestURLPath
-	}()
-	info.RelayMode = relayconstant.RelayModeChatCompletions
-	info.RequestURLPath = "/v1/chat/completions"
 
 	response, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
