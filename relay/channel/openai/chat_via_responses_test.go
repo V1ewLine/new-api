@@ -48,7 +48,7 @@ func TestOaiResponsesToChatStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
 
 	body := strings.Join([]string{
-		`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test","created_at":1710000000}}`,
+		`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test","created_at":1710000000.0}}`,
 		`data: {"type":"response.output_text.delta","delta":"hello"}`,
 		`data: {"type":"response.output_item.added","output_index":1,"item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"lookup"}}`,
 		`data: {"type":"response.function_call_arguments.delta","output_index":1,"delta":"{\"q\":\"x\"}"}`,

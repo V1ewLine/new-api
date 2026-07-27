@@ -3,6 +3,8 @@ package dto
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
@@ -290,10 +292,43 @@ type OutputTokenDetails struct {
 	ReasoningTokens int `json:"reasoning_tokens"`
 }
 
+// UnixTimestamp accepts the integer timestamp required by OpenAI-compatible
+// APIs and the integral decimal form emitted by some upstreams (for example,
+// 1785149227.0). It always marshals as an integer and rejects fractional values.
+type UnixTimestamp int64
+
+func (u *UnixTimestamp) UnmarshalJSON(data []byte) error {
+	raw := strings.TrimSpace(string(data))
+	if raw == "null" {
+		*u = 0
+		return nil
+	}
+
+	integerPart := raw
+	if decimalIndex := strings.IndexByte(raw, '.'); decimalIndex >= 0 {
+		integerPart = raw[:decimalIndex]
+		fractionalPart := raw[decimalIndex+1:]
+		if fractionalPart == "" || strings.Trim(fractionalPart, "0") != "" {
+			return fmt.Errorf("invalid Unix timestamp %q: fractional value is not supported", raw)
+		}
+	}
+
+	value, err := strconv.ParseInt(integerPart, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid Unix timestamp %q: %w", raw, err)
+	}
+	*u = UnixTimestamp(value)
+	return nil
+}
+
+func (u UnixTimestamp) MarshalJSON() ([]byte, error) {
+	return common.Marshal(int64(u))
+}
+
 type OpenAIResponsesResponse struct {
 	ID                 string             `json:"id"`
 	Object             string             `json:"object"`
-	CreatedAt          int                `json:"created_at"`
+	CreatedAt          UnixTimestamp      `json:"created_at"`
 	Status             json.RawMessage    `json:"status"`
 	Error              any                `json:"error,omitempty"`
 	IncompleteDetails  *IncompleteDetails `json:"incomplete_details,omitempty"`
