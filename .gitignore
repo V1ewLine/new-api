@@ -26,6 +26,7 @@ plans
 .claude
 .cursor
 /sglang_telemetry_agent/
+/scripts/database/postgresql-logical-migrate.env
 
 electron/node_modules
 electron/dist

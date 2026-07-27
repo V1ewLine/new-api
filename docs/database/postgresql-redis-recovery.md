@@ -221,6 +221,89 @@ pg_restore \
 
 大数据库不适合单事务恢复时，可以去掉 `--single-transaction`，但应在隔离环境恢复，并在任意错误后废弃该目标库，重新创建空库再恢复。
 
+### 7.3 使用仓库的一键迁移脚本
+
+仓库提供了方案 B 的辅助脚本：
+
+```text
+scripts/database/postgresql-logical-migrate.sh
+scripts/database/postgresql-logical-migrate.env.example
+```
+
+脚本负责：
+
+1. 检查 `psql`、`pg_dump`、`pg_restore` 和 `createdb`。
+2. 检查源库、目标 PostgreSQL 版本、目标账号和目标库名称。
+3. 拒绝覆盖任何已经存在的目标数据库。
+4. 未手工指定名称时，自动生成带日期的目标数据库名。
+5. 先生成并校验 PostgreSQL custom 格式逻辑备份。
+6. 创建全新的目标数据库，并在单个事务中恢复。
+7. 对比源库和目标库的关键表行数。
+8. 可选地同时迁移独立的 `LOG_SQL_DSN` 日志库。
+
+脚本不会读取源或目标 PostgreSQL 的 `PGDATA` 原始目录。方案 B 中需要填写的是源库和目标库的连接参数，以及 `.dump` 逻辑备份的保存目录。如果手里只有 `PGDATA`，应先按“方案 C”使用相同 PostgreSQL 大版本启动目录副本，再回到本脚本执行逻辑迁移。
+
+脚本可以在宿主机、运维机或临时工具容器中运行，不要求该机器运行 new-api，但必须能同时访问源、目标 PostgreSQL，并安装 `psql`、`pg_dump`、`pg_restore`、`createdb`。PostgreSQL 客户端版本不能低于源数据库服务端的大版本。
+
+先复制配置模板到仓库外的私密目录：
+
+```bash
+cp scripts/database/postgresql-logical-migrate.env.example \
+  /data/secrets/postgresql-logical-migrate.env
+chmod 600 /data/secrets/postgresql-logical-migrate.env
+```
+
+配置模板已经把连接参数拆开，脚本内部会组合成 libpq 连接串。只迁移主库时必须填写：
+
+| 配置项 | 用途 |
+| --- | --- |
+| `NEWAPI_SOURCE_MAIN_HOST` | 旧 PostgreSQL 地址 |
+| `NEWAPI_SOURCE_MAIN_DATABASE` | 旧 new-api 数据库名 |
+| `NEWAPI_SOURCE_MAIN_USER` | 旧数据库账号 |
+| `NEWAPI_SOURCE_MAIN_PASSWORD` | 旧数据库密码 |
+| `NEWAPI_TARGET_MAIN_HOST` | 目标 PostgreSQL 地址 |
+| `NEWAPI_TARGET_MAIN_ADMIN_USER` | 目标管理账号，必须拥有 `CREATEDB` 权限 |
+| `NEWAPI_TARGET_MAIN_ADMIN_PASSWORD` | 目标管理账号密码 |
+| `NEWAPI_TARGET_MAIN_APP_USER` | 已存在的目标应用账号 |
+| `NEWAPI_TARGET_MAIN_APP_PASSWORD` | 目标应用账号密码 |
+| `NEWAPI_BACKUP_DIR` | `.dump` 逻辑备份保存目录，不是 `PGDATA` |
+
+端口默认是 `5432`，SSL 模式默认是 `prefer`，目标管理库默认是 `postgres`。这些默认值可以分别通过 `NEWAPI_SOURCE_MAIN_PORT`、`NEWAPI_TARGET_MAIN_PORT`、`NEWAPI_SOURCE_MAIN_SSLMODE`、`NEWAPI_TARGET_MAIN_SSLMODE` 和 `NEWAPI_TARGET_MAIN_ADMIN_DATABASE` 修改。
+
+旧部署使用独立 `LOG_SQL_DSN` 时，再填写模板中的 `NEWAPI_SOURCE_LOG_*` 配置。目标日志库默认复用目标主库的服务器、管理连接和应用账号。
+
+如需直接使用完整 DSN，仍可填写 `NEWAPI_SOURCE_MAIN_DSN`、`NEWAPI_TARGET_MAIN_ADMIN_DSN`、`NEWAPI_TARGET_MAIN_DSN_TEMPLATE` 和 `NEWAPI_TARGET_MAIN_OWNER`。完整 DSN 优先于拆分参数；URI 密码中的特殊字符需要编码。
+
+目标应用账号必须提前创建，管理连接使用的账号必须具有 `CREATEDB` 权限。目标数据库本身不能提前创建，脚本会用 `template0` 创建它。
+
+默认名称使用运行脚本机器的当前日期：
+
+```text
+主库：new_api_prod_YYYYMMDD
+日志库：new_api_log_prod_YYYYMMDD
+```
+
+例如在 2026 年 7 月 27 日执行时，主库名称为 `new_api_prod_20260727`。运行 `--check` 时会显示最终生成的名称。需要固定名称时，可以在配置文件中填写 `NEWAPI_TARGET_MAIN_DATABASE`；DSN 中无需同步修改，脚本会自动替换 `__DATABASE__` 占位符。
+
+先执行只读检查：
+
+```bash
+./scripts/database/postgresql-logical-migrate.sh \
+  --config /data/secrets/postgresql-logical-migrate.env \
+  --check
+```
+
+停止旧 new-api 写入后执行正式迁移：
+
+```bash
+./scripts/database/postgresql-logical-migrate.sh \
+  --config /data/secrets/postgresql-logical-migrate.env
+```
+
+正式迁移要求在交互式终端输入目标数据库名确认。失败时脚本不会删除备份或目标数据库，也不会自动重试覆盖；应保留现场排查，并换一个新的空目标库重新执行。
+
+脚本只完成 PostgreSQL 逻辑备份、恢复和基础行数核对。之后仍需让新版 new-api 连接目标库，并且只启动一个主节点来执行当前版本的 GORM 数据库迁移。
+
 ## 8. 方案 C：只有 PostgreSQL 原始数据目录
 
 ### 8.1 不要直接使用原目录
