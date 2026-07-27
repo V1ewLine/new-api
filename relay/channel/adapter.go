@@ -31,6 +31,19 @@ type Adaptor interface {
 	ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error)
 }
 
+// OpenAIResponsesViaChatCompletionsAdaptor marks an adaptor whose upstream
+// text endpoint speaks OpenAI Chat Completions but not OpenAI Responses.
+// The relay converts both the request and response while preserving the
+// downstream /v1/responses contract.
+type OpenAIResponsesViaChatCompletionsAdaptor interface {
+	SupportsOpenAIResponsesViaChatCompletions() bool
+}
+
+func SupportsOpenAIResponsesViaChatCompletions(adaptor Adaptor) bool {
+	support, ok := adaptor.(OpenAIResponsesViaChatCompletionsAdaptor)
+	return ok && support.SupportsOpenAIResponsesViaChatCompletions()
+}
+
 type TaskAdaptor interface {
 	Init(info *relaycommon.RelayInfo)
 

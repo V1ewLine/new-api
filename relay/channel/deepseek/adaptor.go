@@ -56,6 +56,10 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
+func (a *Adaptor) SupportsOpenAIResponsesViaChatCompletions() bool {
+	return true
+}
+
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	fimBaseUrl := info.ChannelBaseUrl
 	switch info.RelayFormat {

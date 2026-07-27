@@ -10,6 +10,7 @@ import (
 	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -80,6 +81,14 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
+	if channel.SupportsOpenAIResponsesViaChatCompletions(adaptor) {
+		usage, newAPIError := responsesViaChatCompletions(c, info, adaptor, request)
+		if newAPIError != nil {
+			return newAPIError
+		}
+		return finalizeResponsesUsage(c, info, usage)
+	}
+
 	var requestBody io.Reader
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		storage, err := common.GetBodyStorage(c)
@@ -149,7 +158,10 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return newAPIError
 	}
 
-	usageDto := usage.(*dto.Usage)
+	return finalizeResponsesUsage(c, info, usage.(*dto.Usage))
+}
+
+func finalizeResponsesUsage(c *gin.Context, info *relaycommon.RelayInfo, usageDto *dto.Usage) *types.NewAPIError {
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
 		originModelName := info.OriginModelName
 		originPriceData := info.PriceData
