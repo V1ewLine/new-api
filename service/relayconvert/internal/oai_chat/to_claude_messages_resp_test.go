@@ -204,6 +204,133 @@ func TestStreamResponseOpenAI2ClaudeClosesTextThinkingAndToolBlocks(t *testing.T
 	assert.Equal(t, "message_stop", finishResponses[2].Type)
 }
 
+func TestStreamResponseOpenAI2ClaudeUsesSequentialBlocksForInterleavedToolCalls(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		ClaudeConvertInfo: &relaycommon.ClaudeConvertInfo{
+			LastMessagesType: relaycommon.LastMessageTypeNone,
+		},
+	}
+	allResponses := make([]*dto.ClaudeResponse, 0)
+	chunks := []*dto.ChatCompletionsStreamResponse{
+		{
+			Id:    "chatcmpl_interleaved",
+			Model: "deepseek-test",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("before")}},
+			},
+		},
+		{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ToolCalls: []dto.ToolCallResponse{{
+						Index: ptr(0),
+						ID:    "call_0",
+						Function: dto.FunctionResponse{
+							Name: "first_tool",
+						},
+					}},
+				}},
+			},
+		},
+		{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ToolCalls: []dto.ToolCallResponse{{
+						Index: ptr(0),
+						Function: dto.FunctionResponse{
+							Arguments: `{"value":"first"}`,
+						},
+					}},
+				}},
+			},
+		},
+		{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("between")}},
+			},
+		},
+		{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ToolCalls: []dto.ToolCallResponse{{
+						Index: ptr(1),
+						ID:    "call_1",
+						Function: dto.FunctionResponse{
+							Name: "second_tool",
+						},
+					}},
+				}},
+			},
+		},
+		{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ToolCalls: []dto.ToolCallResponse{{
+						Index: ptr(1),
+						Function: dto.FunctionResponse{
+							Arguments: `{"value":"second"}`,
+						},
+					}},
+				}},
+			},
+		},
+		{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("after")}},
+			},
+		},
+		{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{FinishReason: ptr("tool_calls")},
+			},
+			Usage: &dto.Usage{
+				PromptTokens:     10,
+				CompletionTokens: 5,
+				TotalTokens:      15,
+			},
+		},
+	}
+
+	for i, chunk := range chunks {
+		info.SendResponseCount = i + 1
+		allResponses = append(allResponses, StreamResponseOpenAI2Claude(chunk, info)...)
+	}
+
+	type blockEvent struct {
+		eventType string
+		index     int
+	}
+	blockEvents := make([]blockEvent, 0)
+	for _, response := range allResponses {
+		switch response.Type {
+		case "content_block_start", "content_block_delta", "content_block_stop":
+			blockEvents = append(blockEvents, blockEvent{
+				eventType: response.Type,
+				index:     response.GetIndex(),
+			})
+		}
+	}
+
+	assert.Equal(t, []blockEvent{
+		{eventType: "content_block_start", index: 0},
+		{eventType: "content_block_delta", index: 0},
+		{eventType: "content_block_stop", index: 0},
+		{eventType: "content_block_start", index: 1},
+		{eventType: "content_block_delta", index: 1},
+		{eventType: "content_block_stop", index: 1},
+		{eventType: "content_block_start", index: 2},
+		{eventType: "content_block_delta", index: 2},
+		{eventType: "content_block_stop", index: 2},
+		{eventType: "content_block_start", index: 3},
+		{eventType: "content_block_delta", index: 3},
+		{eventType: "content_block_stop", index: 3},
+		{eventType: "content_block_start", index: 4},
+		{eventType: "content_block_delta", index: 4},
+		{eventType: "content_block_stop", index: 4},
+	}, blockEvents)
+	assert.Equal(t, "message_stop", allResponses[len(allResponses)-1].Type)
+}
+
 func TestNormalizeCacheCreationSplit(t *testing.T) {
 	cache5m, cache1h := NormalizeCacheCreationSplit(10, 3, 2)
 	assert.Equal(t, 8, cache5m)
