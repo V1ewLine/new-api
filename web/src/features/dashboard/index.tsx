@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
+import { ModelsExportDialog } from './components/models/models-export-dialog'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
@@ -275,6 +276,11 @@ export function Dashboard() {
           currentFilters={modelFilters}
           onFilterChange={handleFilterChange}
           onReset={handleResetFilters}
+        />
+        <ModelsExportDialog
+          preferences={chartPreferences}
+          currentFilters={modelFilters}
+          isAdmin={isAdmin}
         />
       </>
     ) : null

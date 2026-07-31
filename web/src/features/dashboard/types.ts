@@ -191,6 +191,19 @@ export interface DashboardFilters {
   username?: string
 }
 
+export interface ModelAnalyticsExportQuery {
+  start_timestamp: number
+  end_timestamp: number
+  granularity: TimeGranularity
+  timezone: string
+  username?: string
+}
+
+export interface ModelAnalyticsExportParams extends ModelAnalyticsExportQuery {
+  model_name?: string
+  format: 'csv'
+}
+
 export type ConsumptionDistributionChartType = 'bar' | 'area'
 
 export type ModelAnalyticsChartTab = 'trend' | 'proportion' | 'top'

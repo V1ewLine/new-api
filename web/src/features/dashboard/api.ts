@@ -18,8 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
+import { getModelExportFilename } from './lib/model-export'
 import type {
   FlowQuotaDataItem,
+  ModelAnalyticsExportParams,
+  ModelAnalyticsExportQuery,
   QuotaDataItem,
   UptimeGroupResult,
 } from './types'
@@ -49,6 +52,50 @@ export async function getUserQuotaDates(
     { params }
   )
   return res.data
+}
+
+export async function getModelAnalyticsExportModels(
+  params: ModelAnalyticsExportQuery,
+  isAdmin = false
+) {
+  const endpoint = isAdmin ? '/api/data/models' : '/api/data/self/models'
+  const response = await api.get<{
+    success: boolean
+    data?: string[]
+    message?: string
+  }>(endpoint, { params })
+  if (!response.data.success) {
+    throw new Error(response.data.message || 'Failed to load exportable models')
+  }
+  return response.data.data ?? []
+}
+
+export async function downloadModelAnalyticsExport(
+  params: ModelAnalyticsExportParams,
+  isAdmin = false
+) {
+  const endpoint = isAdmin ? '/api/data/export' : '/api/data/self/export'
+  const response = await api.get<Blob>(endpoint, {
+    params,
+    responseType: 'blob',
+    skipBusinessError: true,
+    disableDuplicate: true,
+  })
+  const disposition = response.headers['content-disposition']
+  if (!disposition) {
+    const payload = await response.data.text()
+    let errorResponse: { message?: string }
+    try {
+      errorResponse = JSON.parse(payload) as { message?: string }
+    } catch {
+      throw new Error('Failed to export model analytics')
+    }
+    throw new Error(errorResponse.message || 'Failed to export model analytics')
+  }
+  return {
+    blob: response.data,
+    filename: getModelExportFilename(disposition),
+  }
 }
 
 // ----------------------------------------------------------------------------

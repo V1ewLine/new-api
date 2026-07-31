@@ -891,17 +891,250 @@ const currentLoadTranslations = {
   },
 }
 
+const modelAnalyticsExportEnglish = {
+  'All models': 'All models',
+  'Effective range: {{start}} to {{end}} ({{timezone}})':
+    'Effective range: {{start}} to {{end}} ({{timezone}})',
+  'Export CSV': 'Export CSV',
+  'Export Model Analytics': 'Export Model Analytics',
+  'Export request, token, quota, RPM, and TPM data by model and time bucket.':
+    'Export request, token, quota, RPM, and TPM data by model and time bucket.',
+  'Export Settings': 'Export Settings',
+  'Exporting model analytics...': 'Exporting model analytics...',
+  'Failed to export model analytics': 'Failed to export model analytics',
+  'Failed to load exportable models': 'Failed to load exportable models',
+  'Limits: hourly 90 days, daily 2 years, weekly 5 years; up to 200,000 rows.':
+    'Limits: hourly 90 days, daily 2 years, weekly 5 years; up to 200,000 rows.',
+  'Model analytics exported': 'Model analytics exported',
+  'No model data is available in this time range':
+    'No model data is available in this time range',
+  'Select a model': 'Select a model',
+  'The export uses complete natural time buckets in your browser time zone.':
+    'The export uses complete natural time buckets in your browser time zone.',
+  'The selected export range is too large for this granularity':
+    'The selected export range is too large for this granularity',
+  'The selected model has no data in this time range':
+    'The selected model has no data in this time range',
+  'invalid model analytics export request':
+    'Invalid model analytics export request',
+  'model analytics export exceeds the allowed row count':
+    'Model analytics export exceeds the allowed row count',
+  'model analytics export range is too large':
+    'Model analytics export range is too large',
+  'no model analytics data found': 'No model analytics data found',
+}
+
+const modelAnalyticsExportTranslations = {
+  zh: {
+    'All models': '所有模型',
+    'Effective range: {{start}} to {{end}} ({{timezone}})':
+      '实际导出范围：{{start}} 至 {{end}}（{{timezone}}）',
+    'Export CSV': '导出 CSV',
+    'Export Model Analytics': '导出模型调用分析',
+    'Export request, token, quota, RPM, and TPM data by model and time bucket.':
+      '按模型和时间段导出请求数、Token、额度、RPM 和 TPM 数据。',
+    'Export Settings': '导出设置',
+    'Exporting model analytics...': '正在导出模型调用分析...',
+    'Failed to export model analytics': '模型调用分析导出失败',
+    'Failed to load exportable models': '加载可导出模型失败',
+    'Limits: hourly 90 days, daily 2 years, weekly 5 years; up to 200,000 rows.':
+      '范围限制：小时最多 90 天、天最多 2 年、周最多 5 年；最多导出 200,000 行。',
+    'Model analytics exported': '模型调用分析已导出',
+    'No model data is available in this time range':
+      '该时间范围内没有可导出的模型数据',
+    'Select a model': '选择模型',
+    'The export uses complete natural time buckets in your browser time zone.':
+      '导出将按浏览器时区使用完整的自然时间段。',
+    'The selected export range is too large for this granularity':
+      '所选导出范围超过当前时间粒度的限制',
+    'The selected model has no data in this time range':
+      '所选模型在该时间范围内没有数据',
+    'invalid model analytics export request': '模型调用分析导出请求无效',
+    'model analytics export exceeds the allowed row count':
+      '模型调用分析导出超过允许的行数',
+    'model analytics export range is too large': '模型调用分析导出范围过大',
+    'no model analytics data found': '未找到模型调用分析数据',
+  },
+  'zh-TW': {
+    'All models': '所有模型',
+    'Effective range: {{start}} to {{end}} ({{timezone}})':
+      '實際匯出範圍：{{start}} 至 {{end}}（{{timezone}}）',
+    'Export CSV': '匯出 CSV',
+    'Export Model Analytics': '匯出模型呼叫分析',
+    'Export request, token, quota, RPM, and TPM data by model and time bucket.':
+      '依模型與時間區段匯出請求數、Token、額度、RPM 與 TPM 資料。',
+    'Export Settings': '匯出設定',
+    'Exporting model analytics...': '正在匯出模型呼叫分析...',
+    'Failed to export model analytics': '模型呼叫分析匯出失敗',
+    'Failed to load exportable models': '載入可匯出模型失敗',
+    'Limits: hourly 90 days, daily 2 years, weekly 5 years; up to 200,000 rows.':
+      '範圍限制：小時最多 90 天、天最多 2 年、週最多 5 年；最多匯出 200,000 列。',
+    'Model analytics exported': '模型呼叫分析已匯出',
+    'No model data is available in this time range':
+      '此時間範圍內沒有可匯出的模型資料',
+    'Select a model': '選擇模型',
+    'The export uses complete natural time buckets in your browser time zone.':
+      '匯出會依瀏覽器時區使用完整的自然時間區段。',
+    'The selected export range is too large for this granularity':
+      '所選匯出範圍超過目前時間粒度的限制',
+    'The selected model has no data in this time range':
+      '所選模型在此時間範圍內沒有資料',
+    'invalid model analytics export request': '模型呼叫分析匯出請求無效',
+    'model analytics export exceeds the allowed row count':
+      '模型呼叫分析匯出超過允許的列數',
+    'model analytics export range is too large': '模型呼叫分析匯出範圍過大',
+    'no model analytics data found': '找不到模型呼叫分析資料',
+  },
+  fr: {
+    'All models': 'Tous les modèles',
+    'Effective range: {{start}} to {{end}} ({{timezone}})':
+      'Plage effective : du {{start}} au {{end}} ({{timezone}})',
+    'Export CSV': 'Exporter en CSV',
+    'Export Model Analytics': 'Exporter l’analyse des modèles',
+    'Export request, token, quota, RPM, and TPM data by model and time bucket.':
+      'Exportez les requêtes, jetons, quotas, RPM et TPM par modèle et période.',
+    'Export Settings': 'Paramètres d’export',
+    'Exporting model analytics...': 'Export de l’analyse des modèles...',
+    'Failed to export model analytics':
+      'Échec de l’export de l’analyse des modèles',
+    'Failed to load exportable models':
+      'Échec du chargement des modèles exportables',
+    'Limits: hourly 90 days, daily 2 years, weekly 5 years; up to 200,000 rows.':
+      'Limites : heure 90 jours, jour 2 ans, semaine 5 ans ; 200 000 lignes maximum.',
+    'Model analytics exported': 'Analyse des modèles exportée',
+    'No model data is available in this time range':
+      'Aucune donnée de modèle exportable sur cette période',
+    'Select a model': 'Sélectionner un modèle',
+    'The export uses complete natural time buckets in your browser time zone.':
+      'L’export utilise des périodes calendaires complètes dans le fuseau horaire du navigateur.',
+    'The selected export range is too large for this granularity':
+      'La plage choisie dépasse la limite de cette granularité',
+    'The selected model has no data in this time range':
+      'Le modèle choisi n’a aucune donnée sur cette période',
+    'invalid model analytics export request':
+      'Demande d’export d’analyse des modèles non valide',
+    'model analytics export exceeds the allowed row count':
+      'L’export d’analyse des modèles dépasse le nombre de lignes autorisé',
+    'model analytics export range is too large':
+      'La plage d’export d’analyse des modèles est trop grande',
+    'no model analytics data found':
+      'Aucune donnée d’analyse des modèles trouvée',
+  },
+  ja: {
+    'All models': 'すべてのモデル',
+    'Effective range: {{start}} to {{end}} ({{timezone}})':
+      '実際の範囲：{{start}} ～ {{end}}（{{timezone}}）',
+    'Export CSV': 'CSV をエクスポート',
+    'Export Model Analytics': 'モデル分析をエクスポート',
+    'Export request, token, quota, RPM, and TPM data by model and time bucket.':
+      'モデルと時間帯ごとのリクエスト数、トークン、クォータ、RPM、TPM をエクスポートします。',
+    'Export Settings': 'エクスポート設定',
+    'Exporting model analytics...': 'モデル分析をエクスポート中...',
+    'Failed to export model analytics':
+      'モデル分析のエクスポートに失敗しました',
+    'Failed to load exportable models':
+      'エクスポート可能なモデルの読み込みに失敗しました',
+    'Limits: hourly 90 days, daily 2 years, weekly 5 years; up to 200,000 rows.':
+      '上限：時間単位は90日、日単位は2年、週単位は5年、最大200,000行。',
+    'Model analytics exported': 'モデル分析をエクスポートしました',
+    'No model data is available in this time range':
+      'この期間にはエクスポート可能なモデルデータがありません',
+    'Select a model': 'モデルを選択',
+    'The export uses complete natural time buckets in your browser time zone.':
+      'ブラウザーのタイムゾーンに基づく完全な暦時間帯でエクスポートします。',
+    'The selected export range is too large for this granularity':
+      '選択した範囲は、この時間粒度の上限を超えています',
+    'The selected model has no data in this time range':
+      '選択したモデルには、この期間のデータがありません',
+    'invalid model analytics export request':
+      'モデル分析のエクスポート要求が無効です',
+    'model analytics export exceeds the allowed row count':
+      'モデル分析のエクスポートが許容行数を超えています',
+    'model analytics export range is too large':
+      'モデル分析のエクスポート範囲が大きすぎます',
+    'no model analytics data found': 'モデル分析データが見つかりません',
+  },
+  ru: {
+    'All models': 'Все модели',
+    'Effective range: {{start}} to {{end}} ({{timezone}})':
+      'Фактический диапазон: {{start}} — {{end}} ({{timezone}})',
+    'Export CSV': 'Экспорт CSV',
+    'Export Model Analytics': 'Экспорт аналитики моделей',
+    'Export request, token, quota, RPM, and TPM data by model and time bucket.':
+      'Экспорт запросов, токенов, квоты, RPM и TPM по моделям и временным интервалам.',
+    'Export Settings': 'Настройки экспорта',
+    'Exporting model analytics...': 'Экспорт аналитики моделей...',
+    'Failed to export model analytics':
+      'Не удалось экспортировать аналитику моделей',
+    'Failed to load exportable models':
+      'Не удалось загрузить модели для экспорта',
+    'Limits: hourly 90 days, daily 2 years, weekly 5 years; up to 200,000 rows.':
+      'Ограничения: час — 90 дней, день — 2 года, неделя — 5 лет; до 200 000 строк.',
+    'Model analytics exported': 'Аналитика моделей экспортирована',
+    'No model data is available in this time range':
+      'За этот период нет данных моделей для экспорта',
+    'Select a model': 'Выберите модель',
+    'The export uses complete natural time buckets in your browser time zone.':
+      'При экспорте используются полные календарные интервалы в часовом поясе браузера.',
+    'The selected export range is too large for this granularity':
+      'Выбранный диапазон превышает предел для этой детализации',
+    'The selected model has no data in this time range':
+      'Для выбранной модели нет данных за этот период',
+    'invalid model analytics export request':
+      'Недопустимый запрос экспорта аналитики моделей',
+    'model analytics export exceeds the allowed row count':
+      'Экспорт аналитики моделей превышает допустимое число строк',
+    'model analytics export range is too large':
+      'Диапазон экспорта аналитики моделей слишком велик',
+    'no model analytics data found': 'Данные аналитики моделей не найдены',
+  },
+  vi: {
+    'All models': 'Tất cả mô hình',
+    'Effective range: {{start}} to {{end}} ({{timezone}})':
+      'Khoảng thực tế: {{start}} đến {{end}} ({{timezone}})',
+    'Export CSV': 'Xuất CSV',
+    'Export Model Analytics': 'Xuất phân tích mô hình',
+    'Export request, token, quota, RPM, and TPM data by model and time bucket.':
+      'Xuất dữ liệu yêu cầu, token, hạn mức, RPM và TPM theo mô hình và khoảng thời gian.',
+    'Export Settings': 'Cài đặt xuất',
+    'Exporting model analytics...': 'Đang xuất phân tích mô hình...',
+    'Failed to export model analytics': 'Không thể xuất phân tích mô hình',
+    'Failed to load exportable models': 'Không thể tải các mô hình có thể xuất',
+    'Limits: hourly 90 days, daily 2 years, weekly 5 years; up to 200,000 rows.':
+      'Giới hạn: theo giờ 90 ngày, theo ngày 2 năm, theo tuần 5 năm; tối đa 200.000 dòng.',
+    'Model analytics exported': 'Đã xuất phân tích mô hình',
+    'No model data is available in this time range':
+      'Không có dữ liệu mô hình để xuất trong khoảng thời gian này',
+    'Select a model': 'Chọn mô hình',
+    'The export uses complete natural time buckets in your browser time zone.':
+      'Bản xuất dùng các khoảng thời gian lịch đầy đủ theo múi giờ của trình duyệt.',
+    'The selected export range is too large for this granularity':
+      'Khoảng đã chọn vượt quá giới hạn của độ chi tiết này',
+    'The selected model has no data in this time range':
+      'Mô hình đã chọn không có dữ liệu trong khoảng thời gian này',
+    'invalid model analytics export request':
+      'Yêu cầu xuất phân tích mô hình không hợp lệ',
+    'model analytics export exceeds the allowed row count':
+      'Bản xuất phân tích mô hình vượt quá số dòng cho phép',
+    'model analytics export range is too large':
+      'Khoảng xuất phân tích mô hình quá lớn',
+    'no model analytics data found': 'Không tìm thấy dữ liệu phân tích mô hình',
+  },
+}
+
 const newKeys = {
   en: {
     ...english,
     ...phase2English,
     ...phase3English,
     ...currentLoadEnglish,
+    ...modelAnalyticsExportEnglish,
   },
   zh: {
     ...phase2Translations.zh,
     ...phase3Translations.zh,
     ...currentLoadTranslations.zh,
+    ...modelAnalyticsExportTranslations.zh,
     'Cluster data exported': '集群数据已导出',
     'Cluster list (CSV)': '集群列表（CSV）',
     'Complete cluster snapshot (ZIP)': '完整集群快照（ZIP）',
@@ -933,30 +1166,35 @@ const newKeys = {
     ...phase2Translations['zh-TW'],
     ...phase3Translations['zh-TW'],
     ...currentLoadTranslations['zh-TW'],
+    ...modelAnalyticsExportTranslations['zh-TW'],
   },
   fr: {
     ...english,
     ...phase2Translations.fr,
     ...phase3Translations.fr,
     ...currentLoadTranslations.fr,
+    ...modelAnalyticsExportTranslations.fr,
   },
   ja: {
     ...english,
     ...phase2Translations.ja,
     ...phase3Translations.ja,
     ...currentLoadTranslations.ja,
+    ...modelAnalyticsExportTranslations.ja,
   },
   ru: {
     ...english,
     ...phase2Translations.ru,
     ...phase3Translations.ru,
     ...currentLoadTranslations.ru,
+    ...modelAnalyticsExportTranslations.ru,
   },
   vi: {
     ...english,
     ...phase2Translations.vi,
     ...phase3Translations.vi,
     ...currentLoadTranslations.vi,
+    ...modelAnalyticsExportTranslations.vi,
   },
 }
 

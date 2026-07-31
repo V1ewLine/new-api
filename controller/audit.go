@@ -30,6 +30,8 @@ var auditContentTemplates = map[string]string{
 	"user.reset_passkey":    "Reset the user passkey",
 	"option.update":         "Updated system setting ${key}",
 	"cluster.export":        "Exported cluster telemetry (${scope}, ${format}, ${count} clusters)",
+	"dashboard.model_analytics.export": "Exported model analytics for ${model} " +
+		"(${granularity}, ${row_count} rows, ${model_count} models)",
 
 	"channel.create":             "Created channel ${name} (type ${type}, count ${count})",
 	"channel.update":             "Updated channel ${name} (ID: ${id})",

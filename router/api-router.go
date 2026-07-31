@@ -297,6 +297,10 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)
 		dataRoute.GET("/users", middleware.AdminAuth(), controller.GetQuotaDatesByUser)
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
+		dataRoute.GET("/models", middleware.AdminAuth(), controller.GetModelAnalyticsExportOptions)
+		dataRoute.GET("/self/models", middleware.UserAuth(), controller.GetSelfModelAnalyticsExportOptions)
+		dataRoute.GET("/export", middleware.AdminAuth(), controller.ExportModelAnalytics)
+		dataRoute.GET("/self/export", middleware.UserAuth(), controller.ExportSelfModelAnalytics)
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
 
