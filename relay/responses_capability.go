@@ -37,9 +37,11 @@ type responsesCapabilityCacheEntry struct {
 }
 
 type responsesCapabilityProbeResult struct {
-	mode  model.ResponsesCapabilityMode
-	err   error
-	route bool
+	mode                  model.ResponsesCapabilityMode
+	err                   error
+	statusCode            int
+	route                 bool
+	inputTextIncompatible bool
 }
 
 var responsesCapabilityFlights singleflight.Group
@@ -67,28 +69,73 @@ func InvalidateResponsesCapabilityCache(channelId int) {
 	})
 }
 
+func rememberResponsesCapabilityMode(
+	c *gin.Context,
+	info *relaycommon.RelayInfo,
+	mode model.ResponsesCapabilityMode,
+	lastError string,
+) {
+	if info == nil || info.ChannelMeta == nil || info.ChannelId <= 0 {
+		return
+	}
+	modelName := strings.TrimSpace(info.UpstreamModelName)
+	if modelName == "" {
+		return
+	}
+	if err := model.SaveChannelResponsesCapabilityMode(info.ChannelId, modelName, info.IsStream, mode, lastError); err != nil {
+		logger.LogWarn(responsesCapabilityLogContext(c), fmt.Sprintf(
+			"failed to save corrected Responses capability: channel_id=%d model=%s error=%v",
+			info.ChannelId,
+			modelName,
+			err,
+		))
+		return
+	}
+	responsesCapabilityCache.Store(
+		responsesCapabilityKey(info.ChannelId, modelName, info.IsStream),
+		responsesCapabilityCacheEntry{
+			mode:       mode,
+			detectedAt: time.Now().Unix(),
+			expiresAt:  time.Now().Add(responsesCapabilityCacheTTL),
+		},
+	)
+}
+
 func ResolveResponsesUpstreamMode(
 	c *gin.Context,
 	info *relaycommon.RelayInfo,
 ) dto.ResponsesUpstreamMode {
+	if ResolveResponsesCapabilityMode(c, info) == model.ResponsesCapabilityModeChatCompletions {
+		return dto.ResponsesUpstreamModeChatCompletions
+	}
+	return dto.ResponsesUpstreamModeNative
+}
+
+func ResolveResponsesCapabilityMode(
+	c *gin.Context,
+	info *relaycommon.RelayInfo,
+) model.ResponsesCapabilityMode {
 	if info == nil || info.ChannelMeta == nil {
-		return dto.ResponsesUpstreamModeNative
+		return model.ResponsesCapabilityModeNative
 	}
 	configuredMode := info.ChannelSetting.ResponsesUpstreamMode.Normalize()
-	if configuredMode != dto.ResponsesUpstreamModeAuto {
-		return configuredMode
+	if configuredMode == dto.ResponsesUpstreamModeNative {
+		return model.ResponsesCapabilityModeNative
+	}
+	if configuredMode == dto.ResponsesUpstreamModeChatCompletions {
+		return model.ResponsesCapabilityModeChatCompletions
 	}
 
 	modelName := strings.TrimSpace(info.UpstreamModelName)
 	if info.ChannelId <= 0 || modelName == "" {
-		return dto.ResponsesUpstreamModeNative
+		return model.ResponsesCapabilityModeNative
 	}
 	key := responsesCapabilityKey(info.ChannelId, modelName, info.IsStream)
 	now := time.Now()
 	if cached, ok := responsesCapabilityCache.Load(key); ok {
 		entry := cached.(responsesCapabilityCacheEntry)
 		if now.Before(entry.expiresAt) {
-			return runtimeResponsesMode(entry.mode)
+			return runtimeResponsesCapabilityMode(entry.mode)
 		}
 		responsesCapabilityCache.Delete(key)
 	}
@@ -103,7 +150,7 @@ func ResolveResponsesUpstreamMode(
 				detectedAt: detectedAt,
 				expiresAt:  now.Add(responsesCapabilityCacheTTL),
 			})
-			return runtimeResponsesMode(mode)
+			return runtimeResponsesCapabilityMode(mode)
 		}
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		logger.LogWarn(responsesCapabilityLogContext(c), fmt.Sprintf(
@@ -112,7 +159,7 @@ func ResolveResponsesUpstreamMode(
 			modelName,
 			err,
 		))
-		return dto.ResponsesUpstreamModeNative
+		return model.ResponsesCapabilityModeNative
 	}
 
 	value, _, _ := responsesCapabilityFlights.Do(key, func() (any, error) {
@@ -163,7 +210,7 @@ func ResolveResponsesUpstreamMode(
 			info.IsStream,
 		))
 	}
-	return runtimeResponsesMode(entry.mode)
+	return runtimeResponsesCapabilityMode(entry.mode)
 }
 
 func DetectResponsesCapabilities(
@@ -227,11 +274,15 @@ func capabilityMode(
 	return capability.NonStreamMode, capability.NonStreamDetectedAt
 }
 
-func runtimeResponsesMode(mode model.ResponsesCapabilityMode) dto.ResponsesUpstreamMode {
-	if mode == model.ResponsesCapabilityModeChatCompletions {
-		return dto.ResponsesUpstreamModeChatCompletions
+func runtimeResponsesCapabilityMode(mode model.ResponsesCapabilityMode) model.ResponsesCapabilityMode {
+	switch mode {
+	case model.ResponsesCapabilityModeNative,
+		model.ResponsesCapabilityModeNativeTextCompat,
+		model.ResponsesCapabilityModeChatCompletions:
+		return mode
+	default:
+		return model.ResponsesCapabilityModeNative
 	}
-	return dto.ResponsesUpstreamModeNative
 }
 
 func detectResponsesCapability(
@@ -239,9 +290,24 @@ func detectResponsesCapability(
 	info *relaycommon.RelayInfo,
 	isStream bool,
 ) responsesCapabilityProbeResult {
-	nativeResult := probeResponsesUpstream(c, info, isStream, dto.ResponsesUpstreamModeNative)
+	nativeResult := probeResponsesUpstream(c, info, isStream, model.ResponsesCapabilityModeNative)
 	if nativeResult.mode == model.ResponsesCapabilityModeNative {
 		return nativeResult
+	}
+	var nativeCompatResult *responsesCapabilityProbeResult
+	if nativeResult.inputTextIncompatible {
+		compatResult := probeResponsesUpstream(c, info, isStream, model.ResponsesCapabilityModeNativeTextCompat)
+		nativeCompatResult = &compatResult
+		if compatResult.mode == model.ResponsesCapabilityModeNativeTextCompat {
+			return compatResult
+		}
+		canTryChat := compatResult.route ||
+			compatResult.statusCode == http.StatusBadRequest ||
+			compatResult.statusCode == http.StatusUnprocessableEntity
+		if !canTryChat {
+			return compatResult
+		}
+		nativeResult.route = true
 	}
 	if !nativeResult.route {
 		if nativeResult.err != nil {
@@ -253,14 +319,17 @@ func detectResponsesCapability(
 		}
 	}
 
-	chatResult := probeResponsesUpstream(c, info, isStream, dto.ResponsesUpstreamModeChatCompletions)
+	chatResult := probeResponsesUpstream(c, info, isStream, model.ResponsesCapabilityModeChatCompletions)
 	if chatResult.mode == model.ResponsesCapabilityModeChatCompletions {
 		return chatResult
 	}
 
-	errorParts := make([]string, 0, 2)
+	errorParts := make([]string, 0, 3)
 	if nativeResult.err != nil {
 		errorParts = append(errorParts, "native: "+nativeResult.err.Error())
+	}
+	if nativeCompatResult != nil && nativeCompatResult.err != nil {
+		errorParts = append(errorParts, "native_text_compat: "+nativeCompatResult.err.Error())
 	}
 	if chatResult.err != nil {
 		errorParts = append(errorParts, "chat_completions: "+chatResult.err.Error())
@@ -278,7 +347,7 @@ func probeResponsesUpstream(
 	sourceContext *gin.Context,
 	sourceInfo *relaycommon.RelayInfo,
 	isStream bool,
-	mode dto.ResponsesUpstreamMode,
+	mode model.ResponsesCapabilityMode,
 ) responsesCapabilityProbeResult {
 	probeRequest := &dto.OpenAIResponsesRequest{
 		Model:           sourceInfo.UpstreamModelName,
@@ -311,15 +380,15 @@ func probeResponsesUpstream(
 		}
 	}
 	path := "/v1/responses"
-	if mode == dto.ResponsesUpstreamModeChatCompletions {
+	if mode == model.ResponsesCapabilityModeChatCompletions {
 		path = "/v1/chat/completions"
 	}
 	probeGin.Request = httptest.NewRequestWithContext(probeContext, http.MethodPost, path, nil)
 	probeGin.Request.Header.Set("Content-Type", "application/json")
 
-	if mode == dto.ResponsesUpstreamModeNative {
+	if mode == model.ResponsesCapabilityModeNative {
 		nativeURL, nativeErr := adaptor.GetRequestURL(&probeInfo)
-		chatInfo := cloneResponsesProbeInfo(sourceInfo, probeRequest, isStream, dto.ResponsesUpstreamModeChatCompletions)
+		chatInfo := cloneResponsesProbeInfo(sourceInfo, probeRequest, isStream, model.ResponsesCapabilityModeChatCompletions)
 		chatAdaptor := GetAdaptor(chatInfo.ApiType)
 		if nativeErr == nil && chatAdaptor != nil {
 			chatAdaptor.Init(&chatInfo)
@@ -335,7 +404,7 @@ func probeResponsesUpstream(
 
 	var convertedRequest any
 	var err error
-	if mode == dto.ResponsesUpstreamModeChatCompletions {
+	if mode == model.ResponsesCapabilityModeChatCompletions {
 		result, convertErr := service.ConvertRequest(probeGin, &probeInfo, types.RelayFormatOpenAI, probeRequest)
 		if convertErr != nil {
 			err = convertErr
@@ -348,7 +417,13 @@ func probeResponsesUpstream(
 			}
 		}
 	} else {
-		convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(probeGin, &probeInfo, *probeRequest)
+		nativeRequest := *probeRequest
+		if mode == model.ResponsesCapabilityModeNativeTextCompat {
+			nativeRequest.Input, _, err = normalizeResponsesTextPartsForNativeCompat(nativeRequest.Input)
+		}
+		if err == nil {
+			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(probeGin, &probeInfo, nativeRequest)
+		}
 	}
 	if err != nil {
 		return responsesCapabilityProbeResult{
@@ -394,10 +469,17 @@ func probeResponsesUpstream(
 		errorBody, _ := io.ReadAll(io.LimitReader(httpResponse.Body, 64*1024))
 		_ = httpResponse.Body.Close()
 		errorText := strings.TrimSpace(string(errorBody))
+		inputTextIncompatible := isResponsesInputTextCompatibilityError(httpResponse.StatusCode, errorText)
+		errorMessage := fmt.Sprintf("upstream returned HTTP %d", httpResponse.StatusCode)
+		if inputTextIncompatible {
+			errorMessage += ": Responses input_text is incompatible with the upstream ChatCompletionRequest"
+		}
 		return responsesCapabilityProbeResult{
-			mode:  model.ResponsesCapabilityModeUnknown,
-			err:   fmt.Errorf("upstream returned HTTP %d", httpResponse.StatusCode),
-			route: isExplicitResponsesUnsupportedStatus(httpResponse.StatusCode, errorText),
+			mode:                  model.ResponsesCapabilityModeUnknown,
+			err:                   errors.New(errorMessage),
+			statusCode:            httpResponse.StatusCode,
+			route:                 isExplicitResponsesUnsupportedStatus(httpResponse.StatusCode, errorText),
+			inputTextIncompatible: inputTextIncompatible,
 		}
 	}
 
@@ -409,7 +491,7 @@ func probeResponsesUpstream(
 		}
 	}
 	responseBody := recorder.Body.String()
-	if mode == dto.ResponsesUpstreamModeChatCompletions {
+	if mode == model.ResponsesCapabilityModeChatCompletions {
 		if !validChatProbeResponse(responseBody, isStream) {
 			return responsesCapabilityProbeResult{
 				mode: model.ResponsesCapabilityModeUnknown,
@@ -425,14 +507,14 @@ func probeResponsesUpstream(
 			route: true,
 		}
 	}
-	return responsesCapabilityProbeResult{mode: model.ResponsesCapabilityModeNative}
+	return responsesCapabilityProbeResult{mode: mode}
 }
 
 func cloneResponsesProbeInfo(
 	source *relaycommon.RelayInfo,
 	request *dto.OpenAIResponsesRequest,
 	isStream bool,
-	mode dto.ResponsesUpstreamMode,
+	mode model.ResponsesCapabilityMode,
 ) relaycommon.RelayInfo {
 	cloned := *source
 	if source.ChannelMeta != nil {
@@ -448,7 +530,7 @@ func cloneResponsesProbeInfo(
 	}
 	cloned.RequestConversionChain = []types.RelayFormat{types.RelayFormatOpenAIResponses}
 	cloned.FinalRequestRelayFormat = ""
-	if mode == dto.ResponsesUpstreamModeChatCompletions {
+	if mode == model.ResponsesCapabilityModeChatCompletions {
 		cloned.RelayMode = relayconstant.RelayModeChatCompletions
 		cloned.RelayFormat = types.RelayFormatOpenAI
 		cloned.RequestURLPath = "/v1/chat/completions"
@@ -458,6 +540,35 @@ func cloneResponsesProbeInfo(
 		cloned.RequestURLPath = "/v1/responses"
 	}
 	return cloned
+}
+
+func isResponsesInputTextCompatibilityError(statusCode int, responseBody string) bool {
+	if statusCode != http.StatusBadRequest && statusCode != http.StatusUnprocessableEntity {
+		return false
+	}
+	lower := strings.ToLower(responseBody)
+	if !strings.Contains(lower, "input_text") || !strings.Contains(lower, "chatcompletionrequest") {
+		return false
+	}
+	return strings.Contains(lower, "input should be 'text'") ||
+		strings.Contains(lower, `input should be \"text\"`) ||
+		strings.Contains(lower, "literal_error")
+}
+
+func nextResponsesRuntimeMode(
+	current model.ResponsesCapabilityMode,
+	statusCode int,
+	responseBody string,
+) (model.ResponsesCapabilityMode, bool) {
+	if current == model.ResponsesCapabilityModeNative &&
+		isResponsesInputTextCompatibilityError(statusCode, responseBody) {
+		return model.ResponsesCapabilityModeNativeTextCompat, true
+	}
+	if current != model.ResponsesCapabilityModeChatCompletions &&
+		isExplicitResponsesUnsupportedStatus(statusCode, responseBody) {
+		return model.ResponsesCapabilityModeChatCompletions, true
+	}
+	return current, false
 }
 
 func isExplicitResponsesUnsupportedStatus(statusCode int, responseBody string) bool {

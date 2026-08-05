@@ -50,3 +50,24 @@ func TestChannelResponsesCapabilityStoresStreamingModesIndependently(t *testing.
 	assert.Equal(t, "temporary timeout", capability.NonStreamLastError)
 	assert.Equal(t, ResponsesCapabilityModeChatCompletions, capability.StreamMode)
 }
+
+func TestChannelResponsesCapabilityStoresNativeTextCompatibilityMode(t *testing.T) {
+	const channelId = 88002
+	const modelName = "sglang-native-text-compat"
+	require.NoError(t, DeleteChannelResponsesCapabilities([]int{channelId}))
+	t.Cleanup(func() {
+		require.NoError(t, DeleteChannelResponsesCapabilities([]int{channelId}))
+	})
+
+	require.NoError(t, SaveChannelResponsesCapabilityMode(
+		channelId,
+		modelName,
+		false,
+		ResponsesCapabilityModeNativeTextCompat,
+		"",
+	))
+
+	capability, err := GetChannelResponsesCapability(channelId, modelName)
+	require.NoError(t, err)
+	assert.Equal(t, ResponsesCapabilityModeNativeTextCompat, capability.NonStreamMode)
+}

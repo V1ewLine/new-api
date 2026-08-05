@@ -1122,6 +1122,64 @@ const modelAnalyticsExportTranslations = {
   },
 }
 
+const responsesCompatEnglish = {
+  'Automatically detects standard Responses, SGLang text compatibility, and Chat Completions fallback.':
+    'Automatically detects standard Responses, SGLang text compatibility, and Chat Completions fallback.',
+  'Detection sends minimal streaming and non-streaming requests, then caches the compatible upstream format.':
+    'Detection sends minimal streaming and non-streaming requests, then caches the compatible upstream format.',
+  'Native Responses (text compatibility)':
+    'Native Responses (text compatibility)',
+}
+
+const responsesCompatTranslations = {
+  zh: {
+    'Automatically detects standard Responses, SGLang text compatibility, and Chat Completions fallback.':
+      '自动检测标准 Responses、SGLang 文本兼容和 Chat Completions 回退。',
+    'Detection sends minimal streaming and non-streaming requests, then caches the compatible upstream format.':
+      '检测会发送最小化的流式和非流式请求，然后缓存兼容的上游格式。',
+    'Native Responses (text compatibility)': '原生 Responses（文本兼容）',
+  },
+  'zh-TW': {
+    'Automatically detects standard Responses, SGLang text compatibility, and Chat Completions fallback.':
+      '自動偵測標準 Responses、SGLang 文字相容與 Chat Completions 後備模式。',
+    'Detection sends minimal streaming and non-streaming requests, then caches the compatible upstream format.':
+      '偵測會傳送最小化的串流與非串流請求，然後快取相容的上游格式。',
+    'Native Responses (text compatibility)': '原生 Responses（文字相容）',
+  },
+  fr: {
+    'Automatically detects standard Responses, SGLang text compatibility, and Chat Completions fallback.':
+      'Détecte automatiquement le format Responses standard, la compatibilité texte SGLang et le repli Chat Completions.',
+    'Detection sends minimal streaming and non-streaming requests, then caches the compatible upstream format.':
+      'La détection envoie des requêtes minimales avec et sans streaming, puis met en cache le format amont compatible.',
+    'Native Responses (text compatibility)':
+      'Responses natif (compatibilité texte)',
+  },
+  ja: {
+    'Automatically detects standard Responses, SGLang text compatibility, and Chat Completions fallback.':
+      '標準 Responses、SGLang テキスト互換、Chat Completions フォールバックを自動検出します。',
+    'Detection sends minimal streaming and non-streaming requests, then caches the compatible upstream format.':
+      '検出で最小限のストリーミングおよび非ストリーミングリクエストを送信し、互換性のある上流形式をキャッシュします。',
+    'Native Responses (text compatibility)':
+      'ネイティブ Responses（テキスト互換）',
+  },
+  ru: {
+    'Automatically detects standard Responses, SGLang text compatibility, and Chat Completions fallback.':
+      'Автоматически определяет Responses, текстовую совместимость SGLang и резервный Chat Completions.',
+    'Detection sends minimal streaming and non-streaming requests, then caches the compatible upstream format.':
+      'Проверка отправляет минимальные потоковые и непотоковые запросы, затем кэширует совместимый upstream-формат.',
+    'Native Responses (text compatibility)':
+      'Нативный Responses (совместимость текста)',
+  },
+  vi: {
+    'Automatically detects standard Responses, SGLang text compatibility, and Chat Completions fallback.':
+      'Tự động phát hiện Responses chuẩn, tương thích văn bản SGLang và dự phòng Chat Completions.',
+    'Detection sends minimal streaming and non-streaming requests, then caches the compatible upstream format.':
+      'Quá trình phát hiện gửi các yêu cầu truyền luồng và không truyền luồng tối thiểu, sau đó lưu bộ nhớ đệm định dạng upstream tương thích.',
+    'Native Responses (text compatibility)':
+      'Responses gốc (tương thích văn bản)',
+  },
+}
+
 const newKeys = {
   en: {
     ...english,
@@ -1129,12 +1187,14 @@ const newKeys = {
     ...phase3English,
     ...currentLoadEnglish,
     ...modelAnalyticsExportEnglish,
+    ...responsesCompatEnglish,
   },
   zh: {
     ...phase2Translations.zh,
     ...phase3Translations.zh,
     ...currentLoadTranslations.zh,
     ...modelAnalyticsExportTranslations.zh,
+    ...responsesCompatTranslations.zh,
     'Cluster data exported': '集群数据已导出',
     'Cluster list (CSV)': '集群列表（CSV）',
     'Complete cluster snapshot (ZIP)': '完整集群快照（ZIP）',
@@ -1167,6 +1227,7 @@ const newKeys = {
     ...phase3Translations['zh-TW'],
     ...currentLoadTranslations['zh-TW'],
     ...modelAnalyticsExportTranslations['zh-TW'],
+    ...responsesCompatTranslations['zh-TW'],
   },
   fr: {
     ...english,
@@ -1174,6 +1235,7 @@ const newKeys = {
     ...phase3Translations.fr,
     ...currentLoadTranslations.fr,
     ...modelAnalyticsExportTranslations.fr,
+    ...responsesCompatTranslations.fr,
   },
   ja: {
     ...english,
@@ -1181,6 +1243,7 @@ const newKeys = {
     ...phase3Translations.ja,
     ...currentLoadTranslations.ja,
     ...modelAnalyticsExportTranslations.ja,
+    ...responsesCompatTranslations.ja,
   },
   ru: {
     ...english,
@@ -1188,6 +1251,7 @@ const newKeys = {
     ...phase3Translations.ru,
     ...currentLoadTranslations.ru,
     ...modelAnalyticsExportTranslations.ru,
+    ...responsesCompatTranslations.ru,
   },
   vi: {
     ...english,
@@ -1195,6 +1259,7 @@ const newKeys = {
     ...phase3Translations.vi,
     ...currentLoadTranslations.vi,
     ...modelAnalyticsExportTranslations.vi,
+    ...responsesCompatTranslations.vi,
   },
 }
 

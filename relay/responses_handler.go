@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -80,85 +82,144 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
-	if info.RelayMode == relayconstant.RelayModeResponses &&
-		ResolveResponsesUpstreamMode(c, info) == dto.ResponsesUpstreamModeChatCompletions {
-		usage, newAPIError := responsesViaChatCompletions(c, info, adaptor, request)
-		if newAPIError != nil {
-			return newAPIError
-		}
-		return finalizeResponsesUsage(c, info, usage)
+	runtimeMode := model.ResponsesCapabilityModeNative
+	autoMode := false
+	if info.RelayMode == relayconstant.RelayModeResponses {
+		runtimeMode = ResolveResponsesCapabilityMode(c, info)
+		autoMode = info.ChannelSetting.ResponsesUpstreamMode.Normalize() == dto.ResponsesUpstreamModeAuto
 	}
+	correctedMode := false
+	statusCodeMappingStr := c.GetString("status_code_mapping")
 
-	var requestBody io.Reader
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
-		storage, err := common.GetBodyStorage(c)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
-		}
-		requestBody = common.ReaderOnly(storage)
-	} else {
-		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-		}
-		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
-		jsonData, err := common.Marshal(convertedRequest)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-		}
-
-		// remove disabled fields for OpenAI Responses API
-		jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	for {
+		if info.RelayMode == relayconstant.RelayModeResponses &&
+			runtimeMode == model.ResponsesCapabilityModeChatCompletions {
+			chatAdaptor := adaptor
+			if correctedMode {
+				chatAdaptor = GetAdaptor(info.ApiType)
+				if chatAdaptor == nil {
+					return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
+				}
+				chatAdaptor.Init(info)
+			}
+			usage, relayError := responsesViaChatCompletions(c, info, chatAdaptor, request)
+			if relayError != nil {
+				return relayError
+			}
+			if correctedMode {
+				rememberResponsesCapabilityMode(c, info, runtimeMode, "")
+			}
+			return finalizeResponsesUsage(c, info, usage)
 		}
 
-		// apply param override
-		if len(info.ParamOverride) > 0 {
-			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
-			if err != nil {
-				return newAPIErrorFromParamOverride(err)
+		var requestBody io.Reader
+		var closeRequestBody func()
+		passThrough := runtimeMode == model.ResponsesCapabilityModeNative &&
+			(model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled)
+		if passThrough {
+			storage, storageErr := common.GetBodyStorage(c)
+			if storageErr != nil {
+				return types.NewError(storageErr, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+			}
+			requestBody = common.ReaderOnly(storage)
+		} else {
+			upstreamRequest := *request
+			if runtimeMode == model.ResponsesCapabilityModeNativeTextCompat {
+				upstreamRequest.Input, _, err = normalizeResponsesTextPartsForNativeCompat(upstreamRequest.Input)
+				if err != nil {
+					return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+				}
+			}
+
+			convertedRequest, convertErr := adaptor.ConvertOpenAIResponsesRequest(c, info, upstreamRequest)
+			if convertErr != nil {
+				return types.NewError(convertErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
+			jsonData, marshalErr := common.Marshal(convertedRequest)
+			if marshalErr != nil {
+				return types.NewError(marshalErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+
+			jsonData, convertErr = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
+			if convertErr != nil {
+				return types.NewError(convertErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			if len(info.ParamOverride) > 0 {
+				jsonData, convertErr = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+				if convertErr != nil {
+					return newAPIErrorFromParamOverride(convertErr)
+				}
+			}
+
+			logger.LogDebug(c, "requestBody: %s", jsonData)
+			body, size, closer, bodyErr := relaycommon.NewOutboundJSONBody(jsonData)
+			if bodyErr != nil {
+				return types.NewError(bodyErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			info.UpstreamRequestBodySize = size
+			requestBody = body
+			closeRequestBody = func() {
+				_ = closer.Close()
 			}
 		}
 
-		logger.LogDebug(c, "requestBody: %s", jsonData)
-		body, size, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		resp, requestErr := adaptor.DoRequest(c, info, requestBody)
+		if closeRequestBody != nil {
+			closeRequestBody()
 		}
-		defer closer.Close()
-		jsonData = nil
-		info.UpstreamRequestBodySize = size
-		requestBody = body
-	}
-
-	var httpResp *http.Response
-	resp, err := adaptor.DoRequest(c, info, requestBody)
-	if err != nil {
-		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
-	}
-
-	statusCodeMappingStr := c.GetString("status_code_mapping")
-
-	if resp != nil {
-		httpResp = resp.(*http.Response)
+		if requestErr != nil {
+			return types.NewOpenAIError(requestErr, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+		}
+		httpResp, ok := resp.(*http.Response)
+		if !ok || httpResp == nil {
+			return types.NewOpenAIError(
+				fmt.Errorf("expected HTTP response, got %T", resp),
+				types.ErrorCodeBadResponse,
+				http.StatusInternalServerError,
+			)
+		}
 
 		if httpResp.StatusCode != http.StatusOK {
-			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-			// reset status code 重置状态码
-			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-			return newAPIError
+			if autoMode && info.RelayMode == relayconstant.RelayModeResponses {
+				errorBody, readErr := io.ReadAll(io.LimitReader(httpResp.Body, 64*1024))
+				_ = httpResp.Body.Close()
+				httpResp.Body = io.NopCloser(bytes.NewReader(errorBody))
+				if readErr == nil {
+					errorText := string(errorBody)
+					nextMode, shouldCorrect := nextResponsesRuntimeMode(runtimeMode, httpResp.StatusCode, errorText)
+					if shouldCorrect {
+						_ = httpResp.Body.Close()
+						logger.LogWarn(c, fmt.Sprintf(
+							"correcting Responses upstream mode after validation failure: channel_id=%d model=%s stream=%t old_mode=%s new_mode=%s",
+							info.ChannelId,
+							info.UpstreamModelName,
+							info.IsStream,
+							runtimeMode,
+							nextMode,
+						))
+						correctedMode = true
+						runtimeMode = nextMode
+						continue
+					}
+				}
+			}
+
+			relayError := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
+			service.ResetStatusCode(relayError, statusCodeMappingStr)
+			return relayError
 		}
-	}
 
-	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
-	if newAPIError != nil {
-		// reset status code 重置状态码
-		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-		return newAPIError
+		usage, relayError := adaptor.DoResponse(c, httpResp, info)
+		if relayError != nil {
+			service.ResetStatusCode(relayError, statusCodeMappingStr)
+			return relayError
+		}
+		if correctedMode {
+			rememberResponsesCapabilityMode(c, info, runtimeMode, "")
+		}
+		return finalizeResponsesUsage(c, info, usage.(*dto.Usage))
 	}
-
-	return finalizeResponsesUsage(c, info, usage.(*dto.Usage))
 }
 
 func finalizeResponsesUsage(c *gin.Context, info *relaycommon.RelayInfo, usageDto *dto.Usage) *types.NewAPIError {

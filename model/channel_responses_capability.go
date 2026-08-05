@@ -14,9 +14,10 @@ import (
 type ResponsesCapabilityMode string
 
 const (
-	ResponsesCapabilityModeUnknown         ResponsesCapabilityMode = "unknown"
-	ResponsesCapabilityModeNative          ResponsesCapabilityMode = "native"
-	ResponsesCapabilityModeChatCompletions ResponsesCapabilityMode = "chat_completions"
+	ResponsesCapabilityModeUnknown          ResponsesCapabilityMode = "unknown"
+	ResponsesCapabilityModeNative           ResponsesCapabilityMode = "native"
+	ResponsesCapabilityModeNativeTextCompat ResponsesCapabilityMode = "native_text_compat"
+	ResponsesCapabilityModeChatCompletions  ResponsesCapabilityMode = "chat_completions"
 )
 
 type ChannelResponsesCapability struct {
@@ -72,7 +73,9 @@ func SaveChannelResponsesCapabilityMode(
 	if channelId <= 0 || modelName == "" {
 		return errors.New("channel id and model are required")
 	}
-	if mode != ResponsesCapabilityModeNative && mode != ResponsesCapabilityModeChatCompletions {
+	if mode != ResponsesCapabilityModeNative &&
+		mode != ResponsesCapabilityModeNativeTextCompat &&
+		mode != ResponsesCapabilityModeChatCompletions {
 		mode = ResponsesCapabilityModeUnknown
 	}
 	if len(lastError) > 1024 {

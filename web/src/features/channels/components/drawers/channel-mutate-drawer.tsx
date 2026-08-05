@@ -211,6 +211,8 @@ function ResponsesCapabilityModeBadge({
   let label = t('Unknown')
   if (mode === 'native') {
     label = t('Native Responses')
+  } else if (mode === 'native_text_compat') {
+    label = t('Native Responses (text compatibility)')
   } else if (mode === 'chat_completions') {
     label = t('Chat Completions compatibility')
   }
@@ -220,6 +222,7 @@ function ResponsesCapabilityModeBadge({
       variant={mode === 'unknown' ? 'outline' : 'secondary'}
       className={cn(
         mode === 'native' && 'bg-emerald-500/10 text-emerald-700',
+        mode === 'native_text_compat' && 'bg-amber-500/10 text-amber-700',
         mode === 'chat_completions' && 'bg-blue-500/10 text-blue-700'
       )}
     >
@@ -848,7 +851,7 @@ export function ChannelMutateDrawer({
     },
   })
   let responsesUpstreamModeDescription = t(
-    'Probe the selected model once and cache separate streaming and non-streaming capabilities.'
+    'Automatically detects standard Responses, SGLang text compatibility, and Chat Completions fallback.'
   )
   if (currentResponsesUpstreamMode === 'native') {
     responsesUpstreamModeDescription = t(
@@ -862,7 +865,7 @@ export function ChannelMutateDrawer({
   let responsesCapabilityStatusContent: ReactNode = (
     <p className='text-muted-foreground text-xs'>
       {t(
-        'Detection sends a minimal request to the test model; ambiguous failures keep native behavior.'
+        'Detection sends minimal streaming and non-streaming requests, then caches the compatible upstream format.'
       )}
     </p>
   )

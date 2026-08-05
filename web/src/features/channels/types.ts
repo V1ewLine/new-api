@@ -91,7 +91,11 @@ export interface ChannelSettings {
 
 export type ResponsesUpstreamMode = 'auto' | 'native' | 'chat_completions'
 
-export type ResponsesCapabilityMode = 'unknown' | 'native' | 'chat_completions'
+export type ResponsesCapabilityMode =
+  | 'unknown'
+  | 'native'
+  | 'native_text_compat'
+  | 'chat_completions'
 
 export interface ChannelResponsesCapability {
   id: number
