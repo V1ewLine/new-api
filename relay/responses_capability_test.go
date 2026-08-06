@@ -10,12 +10,12 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,7 +76,14 @@ func TestDetectResponsesCapabilityUsesObservedUpstreamProtocol(t *testing.T) {
 	})
 
 	t.Run("Chat Completions compatibility", func(t *testing.T) {
+		var requestCount atomic.Int32
 		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requestCount.Add(1)
+			if r.URL.Path == "/responses" {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"error":{"message":"Responses endpoint is not supported"}}`))
+				return
+			}
 			assert.Equal(t, "/v1/chat/completions", r.URL.Path)
 			var request dto.GeneralOpenAIRequest
 			assert.NoError(t, common.DecodeJson(r.Body, &request))
@@ -102,6 +109,7 @@ func TestDetectResponsesCapabilityUsesObservedUpstreamProtocol(t *testing.T) {
 
 		require.NoError(t, result.err)
 		assert.Equal(t, model.ResponsesCapabilityModeChatCompletions, result.mode)
+		assert.Equal(t, int32(2), requestCount.Load())
 	})
 
 	t.Run("native Responses text compatibility", func(t *testing.T) {

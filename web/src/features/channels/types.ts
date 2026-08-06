@@ -87,6 +87,8 @@ export interface ChannelSettings {
   system_prompt?: string
   system_prompt_override?: boolean
   responses_upstream_mode?: ResponsesUpstreamMode
+  http_protocol?: 'auto' | 'http1' | string
+  http2_connection_shards?: number
 }
 
 export type ResponsesUpstreamMode = 'auto' | 'native' | 'chat_completions'
