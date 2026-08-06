@@ -7,8 +7,9 @@ import (
 )
 
 // normalizeResponsesTextPartsForNativeCompat rewrites only Responses input
-// content blocks. It deliberately does not walk tool outputs or arbitrary
-// nested payloads, where a user-owned "type" field must remain untouched.
+// content blocks. Tool outputs are normalized only when the output itself is
+// a top-level Responses content-block array; arbitrary nested payloads remain
+// untouched so a user-owned "type" field is never rewritten recursively.
 func normalizeResponsesTextPartsForNativeCompat(input json.RawMessage) (json.RawMessage, bool, error) {
 	if len(input) == 0 {
 		return input, false, nil
@@ -43,6 +44,7 @@ func normalizeResponsesTextPartsForNativeCompat(input json.RawMessage) (json.Raw
 
 func normalizeResponsesInputItem(item map[string]any) bool {
 	changed := normalizeResponsesTextPart(item)
+	changed = normalizeResponsesToolOutputTextParts(item) || changed
 	content, ok := item["content"]
 	if !ok {
 		return changed
@@ -57,6 +59,26 @@ func normalizeResponsesInputItem(item map[string]any) bool {
 		}
 	case map[string]any:
 		changed = normalizeResponsesTextPart(typed) || changed
+	}
+	return changed
+}
+
+func normalizeResponsesToolOutputTextParts(item map[string]any) bool {
+	itemType, ok := item["type"].(string)
+	if !ok || (itemType != "function_call_output" && itemType != "custom_tool_call_output") {
+		return false
+	}
+
+	output, ok := item["output"].([]any)
+	if !ok {
+		return false
+	}
+
+	changed := false
+	for _, part := range output {
+		if contentPart, ok := part.(map[string]any); ok {
+			changed = normalizeResponsesTextPart(contentPart) || changed
+		}
 	}
 	return changed
 }

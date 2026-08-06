@@ -195,7 +195,8 @@ func TestNormalizeResponsesTextPartsForNativeCompat(t *testing.T) {
 		{"role":"user","content":[{"type":"input_text","text":"hello"}]},
 		{"type":"input_text","text":"standalone"},
 		{"role":"assistant","content":[{"type":"output_text","text":"previous answer"}]},
-		{"type":"function_call_output","output":{"type":"input_text","text":"do not rewrite tool payload"}}
+		{"type":"function_call_output","output":[{"type":"input_text","text":"tool result"}]},
+		{"type":"function_call_output","output":{"payload":{"type":"input_text","text":"do not rewrite nested tool payload"}}}
 	]`)
 	originalCopy := append([]byte(nil), original...)
 
@@ -205,7 +206,7 @@ func TestNormalizeResponsesTextPartsForNativeCompat(t *testing.T) {
 	require.True(t, changed)
 	var value []map[string]any
 	require.NoError(t, common.Unmarshal(normalized, &value))
-	require.Len(t, value, 4)
+	require.Len(t, value, 5)
 	content, ok := value[0]["content"].([]any)
 	require.True(t, ok)
 	require.Len(t, content, 1)
@@ -219,9 +220,17 @@ func TestNormalizeResponsesTextPartsForNativeCompat(t *testing.T) {
 	assistantPart, ok := assistantContent[0].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "text", assistantPart["type"])
-	toolOutput, ok := value[3]["output"].(map[string]any)
+	toolOutput, ok := value[3]["output"].([]any)
 	require.True(t, ok)
-	assert.Equal(t, "input_text", toolOutput["type"])
+	require.Len(t, toolOutput, 1)
+	toolOutputPart, ok := toolOutput[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "text", toolOutputPart["type"])
+	nestedToolOutput, ok := value[4]["output"].(map[string]any)
+	require.True(t, ok)
+	nestedToolPayload, ok := nestedToolOutput["payload"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "input_text", nestedToolPayload["type"])
 
 	assert.Equal(t, originalCopy, original)
 }
