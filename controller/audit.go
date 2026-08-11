@@ -32,6 +32,7 @@ var auditContentTemplates = map[string]string{
 	"cluster.export":        "Exported cluster telemetry (${scope}, ${format}, ${count} clusters)",
 	"dashboard.model_analytics.export": "Exported model analytics for ${model} " +
 		"(${granularity}, ${row_count} rows, ${model_count} models)",
+	"usage_logs.export": "Exported ${row_count} usage logs from ${start_at} to ${end_at}",
 
 	"channel.create":             "Created channel ${name} (type ${type}, count ${count})",
 	"channel.update":             "Updated channel ${name} (ID: ${id})",

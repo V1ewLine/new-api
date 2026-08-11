@@ -1180,6 +1180,78 @@ const responsesCompatTranslations = {
   },
 }
 
+const usageLogExportEnglish = {
+  'Exporting usage logs...': 'Exporting usage logs...',
+  'Failed to export usage logs': 'Failed to export usage logs',
+  'Usage logs exported': 'Usage logs exported',
+  'invalid usage log export request': 'Invalid usage log export request',
+  'no usage logs found': 'No usage logs found',
+  'usage log export exceeds the allowed row count':
+    'Usage log export exceeds the allowed row count',
+}
+
+const usageLogExportTranslations = {
+  zh: {
+    'Exporting usage logs...': '正在导出使用日志...',
+    'Failed to export usage logs': '使用日志导出失败',
+    'Usage logs exported': '使用日志已导出',
+    'invalid usage log export request': '使用日志导出请求无效',
+    'no usage logs found': '未找到使用日志',
+    'usage log export exceeds the allowed row count':
+      '使用日志导出超过允许的行数',
+  },
+  'zh-TW': {
+    'Exporting usage logs...': '正在匯出使用記錄...',
+    'Failed to export usage logs': '使用記錄匯出失敗',
+    'Usage logs exported': '使用記錄已匯出',
+    'invalid usage log export request': '使用記錄匯出請求無效',
+    'no usage logs found': '找不到使用記錄',
+    'usage log export exceeds the allowed row count':
+      '使用記錄匯出超過允許的列數',
+  },
+  fr: {
+    'Exporting usage logs...': "Exportation des journaux d'utilisation...",
+    'Failed to export usage logs':
+      "Échec de l'exportation des journaux d'utilisation",
+    'Usage logs exported': "Journaux d'utilisation exportés",
+    'invalid usage log export request':
+      "Demande d'exportation des journaux d'utilisation non valide",
+    'no usage logs found': "Aucun journal d'utilisation trouvé",
+    'usage log export exceeds the allowed row count':
+      "L'exportation des journaux d'utilisation dépasse le nombre de lignes autorisé",
+  },
+  ja: {
+    'Exporting usage logs...': '使用ログをエクスポートしています...',
+    'Failed to export usage logs': '使用ログのエクスポートに失敗しました',
+    'Usage logs exported': '使用ログをエクスポートしました',
+    'invalid usage log export request': '使用ログのエクスポート要求が無効です',
+    'no usage logs found': '使用ログが見つかりません',
+    'usage log export exceeds the allowed row count':
+      '使用ログのエクスポートが許容行数を超えています',
+  },
+  ru: {
+    'Exporting usage logs...': 'Экспорт журналов использования...',
+    'Failed to export usage logs':
+      'Не удалось экспортировать журналы использования',
+    'Usage logs exported': 'Журналы использования экспортированы',
+    'invalid usage log export request':
+      'Недопустимый запрос экспорта журналов использования',
+    'no usage logs found': 'Журналы использования не найдены',
+    'usage log export exceeds the allowed row count':
+      'Экспорт журналов использования превышает допустимое число строк',
+  },
+  vi: {
+    'Exporting usage logs...': 'Đang xuất nhật ký sử dụng...',
+    'Failed to export usage logs': 'Không thể xuất nhật ký sử dụng',
+    'Usage logs exported': 'Đã xuất nhật ký sử dụng',
+    'invalid usage log export request':
+      'Yêu cầu xuất nhật ký sử dụng không hợp lệ',
+    'no usage logs found': 'Không tìm thấy nhật ký sử dụng',
+    'usage log export exceeds the allowed row count':
+      'Bản xuất nhật ký sử dụng vượt quá số hàng cho phép',
+  },
+}
+
 const newKeys = {
   en: {
     ...english,
@@ -1188,6 +1260,7 @@ const newKeys = {
     ...currentLoadEnglish,
     ...modelAnalyticsExportEnglish,
     ...responsesCompatEnglish,
+    ...usageLogExportEnglish,
   },
   zh: {
     ...phase2Translations.zh,
@@ -1195,6 +1268,7 @@ const newKeys = {
     ...currentLoadTranslations.zh,
     ...modelAnalyticsExportTranslations.zh,
     ...responsesCompatTranslations.zh,
+    ...usageLogExportTranslations.zh,
     'Cluster data exported': '集群数据已导出',
     'Cluster list (CSV)': '集群列表（CSV）',
     'Complete cluster snapshot (ZIP)': '完整集群快照（ZIP）',
@@ -1228,6 +1302,7 @@ const newKeys = {
     ...currentLoadTranslations['zh-TW'],
     ...modelAnalyticsExportTranslations['zh-TW'],
     ...responsesCompatTranslations['zh-TW'],
+    ...usageLogExportTranslations['zh-TW'],
   },
   fr: {
     ...english,
@@ -1236,6 +1311,7 @@ const newKeys = {
     ...currentLoadTranslations.fr,
     ...modelAnalyticsExportTranslations.fr,
     ...responsesCompatTranslations.fr,
+    ...usageLogExportTranslations.fr,
   },
   ja: {
     ...english,
@@ -1244,6 +1320,7 @@ const newKeys = {
     ...currentLoadTranslations.ja,
     ...modelAnalyticsExportTranslations.ja,
     ...responsesCompatTranslations.ja,
+    ...usageLogExportTranslations.ja,
   },
   ru: {
     ...english,
@@ -1252,6 +1329,7 @@ const newKeys = {
     ...currentLoadTranslations.ru,
     ...modelAnalyticsExportTranslations.ru,
     ...responsesCompatTranslations.ru,
+    ...usageLogExportTranslations.ru,
   },
   vi: {
     ...english,
@@ -1260,6 +1338,7 @@ const newKeys = {
     ...currentLoadTranslations.vi,
     ...modelAnalyticsExportTranslations.vi,
     ...responsesCompatTranslations.vi,
+    ...usageLogExportTranslations.vi,
   },
 }
 

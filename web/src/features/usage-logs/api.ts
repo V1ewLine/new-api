@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import { buildQueryParams } from './lib/utils'
+import { getUsageLogExportFilename } from './lib/log-export'
+import { buildQueryParams } from './lib/query-params'
 import type {
   GetLogsParams,
   GetLogsResponse,
@@ -27,6 +28,7 @@ import type {
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
   UserInfo,
+  UsageLogExportParams,
 } from './types'
 
 // ============================================================================
@@ -83,6 +85,34 @@ export const getLogStats = (params: GetLogStatsParams = {}) =>
 export const getUserLogStats = (
   params: Omit<GetLogStatsParams, 'username' | 'channel'> = {}
 ) => fetchLogStats('/api/log', params, false)
+
+export async function downloadUsageLogsExport(
+  params: UsageLogExportParams,
+  isAdmin: boolean
+) {
+  const endpoint = isAdmin ? '/api/log/export' : '/api/log/self/export'
+  const response = await api.get<Blob>(endpoint, {
+    params,
+    responseType: 'blob',
+    skipBusinessError: true,
+    disableDuplicate: true,
+  })
+  const disposition = response.headers['content-disposition']
+  if (!disposition) {
+    const payload = await response.data.text()
+    let errorResponse: { message?: string }
+    try {
+      errorResponse = JSON.parse(payload) as { message?: string }
+    } catch {
+      throw new Error('Failed to export usage logs')
+    }
+    throw new Error(errorResponse.message || 'Failed to export usage logs')
+  }
+  return {
+    blob: response.data,
+    filename: getUsageLogExportFilename(disposition),
+  }
+}
 
 export async function getUserInfo(
   userId: number

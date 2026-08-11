@@ -315,6 +315,14 @@ export interface GetLogsParams {
   upstream_request_id?: string
 }
 
+export interface UsageLogExportParams extends Omit<
+  GetLogsParams,
+  'p' | 'page_size'
+> {
+  timezone: string
+  format: 'csv'
+}
+
 export interface GetLogsResponse {
   success: boolean
   message?: string

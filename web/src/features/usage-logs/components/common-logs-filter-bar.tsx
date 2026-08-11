@@ -19,9 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import type { Table } from '@tanstack/react-table'
-import { Eye, EyeOff } from 'lucide-react'
+import { Download, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -38,8 +39,14 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
+import { downloadUsageLogsExport } from '../api'
 import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
 import { buildSearchParams } from '../lib/filter'
+import {
+  buildUsageLogExportParams,
+  hasValidUsageLogExportRange,
+  saveUsageLogExportFile,
+} from '../lib/log-export'
 import { getDefaultTimeRange } from '../lib/utils'
 import type { CommonLogFilters } from '../types'
 import { CommonLogsStats } from './common-logs-stats'
@@ -119,6 +126,7 @@ export function CommonLogsFilterBar<TData>(
   const { isAdminView: isAdmin } = useLogsViewScope()
   const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
+  const [exporting, setExporting] = useState(false)
 
   const searchState = useMemo<CommonLogDraft>(() => {
     const { start, end } = getDefaultTimeRange()
@@ -233,6 +241,47 @@ export function CommonLogsFilterBar<TData>(
     [handleApply]
   )
 
+  const handleExport = useCallback(async () => {
+    const currentSearchParams = {
+      ...buildSearchParams(filters, 'common'),
+      type: [logType],
+    }
+    const exportParams = buildUsageLogExportParams(currentSearchParams, isAdmin)
+    if (!hasValidUsageLogExportRange(exportParams)) {
+      toast.error(t('invalid usage log export request'))
+      return
+    }
+
+    setExporting(true)
+    const toastId = toast.loading(t('Exporting usage logs...'))
+    try {
+      const result = await downloadUsageLogsExport(exportParams, isAdmin)
+      saveUsageLogExportFile(result.blob, result.filename)
+      toast.success(t('Usage logs exported'), {
+        id: toastId,
+        description: result.filename,
+      })
+    } catch (error) {
+      let message = t('Failed to export usage logs')
+      if (error instanceof Error && error.message) {
+        switch (error.message) {
+          case 'invalid usage log export request':
+            message = t('invalid usage log export request')
+            break
+          case 'usage log export exceeds the allowed row count':
+            message = t('usage log export exceeds the allowed row count')
+            break
+          case 'no usage logs found':
+            message = t('no usage logs found')
+            break
+        }
+      }
+      toast.error(message, { id: toastId })
+    } finally {
+      setExporting(false)
+    }
+  }, [filters, isAdmin, logType, t])
+
   const hasExpandedFilters =
     !!filters.token ||
     !!filters.username ||
@@ -268,25 +317,40 @@ export function CommonLogsFilterBar<TData>(
       <CommonLogsStats />
     </div>
   )
-  const sensitiveToggle = (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant='ghost'
-            size='icon'
-            onClick={() => setSensitiveVisible(!sensitiveVisible)}
-            aria-label={sensitiveVisible ? t('Hide') : t('Show')}
-            className='text-muted-foreground hover:text-foreground size-7'
-          />
-        }
+  const toolbarActions = (
+    <>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={() => setSensitiveVisible(!sensitiveVisible)}
+              aria-label={sensitiveVisible ? t('Hide') : t('Show')}
+              className='text-muted-foreground hover:text-foreground size-7'
+            />
+          }
+        >
+          {sensitiveVisible ? <Eye /> : <EyeOff />}
+        </TooltipTrigger>
+        <TooltipContent>
+          {sensitiveVisible ? t('Hide') : t('Show')}
+        </TooltipContent>
+      </Tooltip>
+      <Button
+        type='button'
+        variant='outline'
+        onClick={handleExport}
+        disabled={exporting}
       >
-        {sensitiveVisible ? <Eye /> : <EyeOff />}
-      </TooltipTrigger>
-      <TooltipContent>
-        {sensitiveVisible ? t('Hide') : t('Show')}
-      </TooltipContent>
-    </Tooltip>
+        {exporting ? (
+          <Loader2 className='animate-spin' aria-hidden='true' />
+        ) : (
+          <Download aria-hidden='true' />
+        )}
+        {t('Export CSV')}
+      </Button>
+    </>
   )
 
   const dateRangeFilter = (
@@ -413,7 +477,7 @@ export function CommonLogsFilterBar<TData>(
     <LogsFilterToolbar
       table={props.table}
       stats={statsBar}
-      actionStart={sensitiveToggle}
+      actionStart={toolbarActions}
       primaryFilters={
         <>
           {dateRangeFilter}
