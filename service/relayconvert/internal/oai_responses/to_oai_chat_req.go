@@ -425,7 +425,27 @@ func RequestTextToChatResponseFormat(raw json.RawMessage) (*dto.ResponseFormat, 
 
 func responsesImagePartToChatImageURL(part map[string]any) any {
 	if imageURL, ok := part["image_url"]; ok {
-		return imageURL
+		switch typed := imageURL.(type) {
+		case string:
+			normalized := map[string]any{"url": typed}
+			if detail, exists := part["detail"]; exists {
+				normalized["detail"] = detail
+			}
+			return normalized
+		case map[string]any:
+			normalized := make(map[string]any, len(typed)+1)
+			for key, value := range typed {
+				normalized[key] = value
+			}
+			if detail, exists := part["detail"]; exists {
+				if _, hasNestedDetail := normalized["detail"]; !hasNestedDetail {
+					normalized["detail"] = detail
+				}
+			}
+			return normalized
+		default:
+			return imageURL
+		}
 	}
 	imageURL := map[string]any{}
 	for _, key := range []string{"url", "file_id", "detail"} {

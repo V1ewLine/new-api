@@ -125,7 +125,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		} else {
 			upstreamRequest := *request
 			if runtimeMode == model.ResponsesCapabilityModeNativeTextCompat {
-				upstreamRequest.Input, _, err = normalizeResponsesTextPartsForNativeCompat(upstreamRequest.Input)
+				upstreamRequest.Input, _, err = normalizeResponsesContentPartsForNativeCompat(upstreamRequest.Input)
 				if err != nil {
 					return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 				}

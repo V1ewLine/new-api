@@ -190,17 +190,25 @@ func TestDetectResponsesCapabilityUsesObservedUpstreamProtocol(t *testing.T) {
 	})
 }
 
-func TestNormalizeResponsesTextPartsForNativeCompat(t *testing.T) {
+func TestNormalizeResponsesContentPartsForNativeCompat(t *testing.T) {
 	original := []byte(`[
-		{"role":"user","content":[{"type":"input_text","text":"hello"}]},
+		{"role":"user","content":[
+			{"type":"input_text","text":"hello"},
+			{"type":"input_image","image_url":"https://example.test/image.png","detail":"low"},
+			{"type":"input_image","image_url":"data:image/png;base64,aGVsbG8="}
+		]},
 		{"type":"input_text","text":"standalone"},
 		{"role":"assistant","content":[{"type":"output_text","text":"previous answer"}]},
 		{"type":"function_call_output","output":[{"type":"input_text","text":"tool result"}]},
-		{"type":"function_call_output","output":{"payload":{"type":"input_text","text":"do not rewrite nested tool payload"}}}
+		{"type":"function_call_output","output":{"payload":{
+			"type":"input_text",
+			"text":"do not rewrite nested tool payload",
+			"image":{"type":"input_image","image_url":"data:image/png;base64,dGVzdA=="}
+		}}}
 	]`)
 	originalCopy := append([]byte(nil), original...)
 
-	normalized, changed, err := normalizeResponsesTextPartsForNativeCompat(original)
+	normalized, changed, err := normalizeResponsesContentPartsForNativeCompat(original)
 
 	require.NoError(t, err)
 	require.True(t, changed)
@@ -209,10 +217,24 @@ func TestNormalizeResponsesTextPartsForNativeCompat(t *testing.T) {
 	require.Len(t, value, 5)
 	content, ok := value[0]["content"].([]any)
 	require.True(t, ok)
-	require.Len(t, content, 1)
+	require.Len(t, content, 3)
 	contentPart, ok := content[0].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "text", contentPart["type"])
+	remoteImagePart, ok := content[1].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "image_url", remoteImagePart["type"])
+	assert.NotContains(t, remoteImagePart, "detail")
+	remoteImageURL, ok := remoteImagePart["image_url"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "https://example.test/image.png", remoteImageURL["url"])
+	assert.Equal(t, "low", remoteImageURL["detail"])
+	dataImagePart, ok := content[2].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "image_url", dataImagePart["type"])
+	dataImageURL, ok := dataImagePart["image_url"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "data:image/png;base64,aGVsbG8=", dataImageURL["url"])
 	assert.Equal(t, "text", value[1]["type"])
 	assistantContent, ok := value[2]["content"].([]any)
 	require.True(t, ok)
@@ -231,12 +253,52 @@ func TestNormalizeResponsesTextPartsForNativeCompat(t *testing.T) {
 	nestedToolPayload, ok := nestedToolOutput["payload"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "input_text", nestedToolPayload["type"])
+	nestedToolImage, ok := nestedToolPayload["image"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "input_image", nestedToolImage["type"])
 
 	assert.Equal(t, originalCopy, original)
 }
 
+func TestNormalizeResponsesImagePartForNativeCompatKeepsUnsupportedAndNestedValuesSafe(t *testing.T) {
+	fileIDOnly := map[string]any{
+		"type":    "input_image",
+		"file_id": "file_1",
+		"detail":  "low",
+	}
+	assert.False(t, normalizeResponsesContentPart(fileIDOnly))
+	assert.Equal(t, "input_image", fileIDOnly["type"])
+	assert.Equal(t, "file_1", fileIDOnly["file_id"])
+	assert.Equal(t, "low", fileIDOnly["detail"])
+
+	invalidURL := map[string]any{
+		"type":      "input_image",
+		"image_url": 42,
+	}
+	assert.False(t, normalizeResponsesContentPart(invalidURL))
+	assert.Equal(t, "input_image", invalidURL["type"])
+	assert.Equal(t, 42, invalidURL["image_url"])
+
+	nestedDetail := map[string]any{
+		"type": "input_image",
+		"image_url": map[string]any{
+			"url":    "https://example.test/image.png",
+			"detail": "high",
+		},
+		"detail": "low",
+	}
+	require.True(t, normalizeResponsesContentPart(nestedDetail))
+	assert.Equal(t, "image_url", nestedDetail["type"])
+	assert.NotContains(t, nestedDetail, "detail")
+	nestedImageURL, ok := nestedDetail["image_url"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "https://example.test/image.png", nestedImageURL["url"])
+	assert.Equal(t, "high", nestedImageURL["detail"])
+}
+
 func TestNextResponsesRuntimeModeOnlyCorrectsProtocolFailures(t *testing.T) {
 	inputTextError := `43 validation errors for ChatCompletionRequest: Input should be 'text'; input=input_text; type=literal_error`
+	inputImageError := `75 validation errors for ChatCompletionRequest: Input should be 'image_url'; input=input_image; type=literal_error`
 	tests := []struct {
 		name       string
 		current    model.ResponsesCapabilityMode
@@ -254,6 +316,22 @@ func TestNextResponsesRuntimeModeOnlyCorrectsProtocolFailures(t *testing.T) {
 			correct:    true,
 		},
 		{
+			name:       "normalizes native input_image validation failure",
+			current:    model.ResponsesCapabilityModeNative,
+			statusCode: http.StatusBadRequest,
+			body:       inputImageError,
+			expected:   model.ResponsesCapabilityModeNativeTextCompat,
+			correct:    true,
+		},
+		{
+			name:       "falls back to Chat when native content compatibility still fails",
+			current:    model.ResponsesCapabilityModeNativeTextCompat,
+			statusCode: http.StatusUnprocessableEntity,
+			body:       inputImageError,
+			expected:   model.ResponsesCapabilityModeChatCompletions,
+			correct:    true,
+		},
+		{
 			name:       "falls back to Chat when Responses route disappears",
 			current:    model.ResponsesCapabilityModeNativeTextCompat,
 			statusCode: http.StatusNotFound,
@@ -266,6 +344,14 @@ func TestNextResponsesRuntimeModeOnlyCorrectsProtocolFailures(t *testing.T) {
 			current:    model.ResponsesCapabilityModeNative,
 			statusCode: http.StatusTooManyRequests,
 			body:       inputTextError,
+			expected:   model.ResponsesCapabilityModeNative,
+			correct:    false,
+		},
+		{
+			name:       "does not reinterpret model image capability errors",
+			current:    model.ResponsesCapabilityModeNative,
+			statusCode: http.StatusBadRequest,
+			body:       "ChatCompletionRequest: input_image is not supported by this model",
 			expected:   model.ResponsesCapabilityModeNative,
 			correct:    false,
 		},
@@ -286,6 +372,45 @@ func TestNextResponsesRuntimeModeOnlyCorrectsProtocolFailures(t *testing.T) {
 			assert.Equal(t, test.correct, correct)
 		})
 	}
+}
+
+func TestResponsesImageCompatibilityCorrectionNormalizesRetryRequest(t *testing.T) {
+	input := []byte(`[{
+		"role":"user",
+		"content":[
+			{"type":"input_text","text":"describe this image"},
+			{"type":"input_image","image_url":"data:image/png;base64,aGVsbG8=","detail":"low"}
+		]
+	}]`)
+	errorBody := `75 validation errors for ChatCompletionRequest: Input should be 'image_url'; input=input_image; type=literal_error`
+
+	nextMode, shouldCorrect := nextResponsesRuntimeMode(
+		model.ResponsesCapabilityModeNative,
+		http.StatusBadRequest,
+		errorBody,
+	)
+	require.True(t, shouldCorrect)
+	require.Equal(t, model.ResponsesCapabilityModeNativeTextCompat, nextMode)
+
+	normalized, changed, err := normalizeResponsesContentPartsForNativeCompat(input)
+	require.NoError(t, err)
+	require.True(t, changed)
+	var items []map[string]any
+	require.NoError(t, common.Unmarshal(normalized, &items))
+	require.Len(t, items, 1)
+	content, ok := items[0]["content"].([]any)
+	require.True(t, ok)
+	require.Len(t, content, 2)
+	textPart, ok := content[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "text", textPart["type"])
+	imagePart, ok := content[1].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "image_url", imagePart["type"])
+	imageURL, ok := imagePart["image_url"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "data:image/png;base64,aGVsbG8=", imageURL["url"])
+	assert.Equal(t, "low", imageURL["detail"])
 }
 
 func TestDetectResponsesCapabilityDoesNotProbeChatAfterAmbiguousNativeFailure(t *testing.T) {

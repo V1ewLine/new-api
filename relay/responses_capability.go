@@ -37,11 +37,11 @@ type responsesCapabilityCacheEntry struct {
 }
 
 type responsesCapabilityProbeResult struct {
-	mode                  model.ResponsesCapabilityMode
-	err                   error
-	statusCode            int
-	route                 bool
-	inputTextIncompatible bool
+	mode                model.ResponsesCapabilityMode
+	err                 error
+	statusCode          int
+	route               bool
+	contentIncompatible bool
 }
 
 var responsesCapabilityFlights singleflight.Group
@@ -295,7 +295,7 @@ func detectResponsesCapability(
 		return nativeResult
 	}
 	var nativeCompatResult *responsesCapabilityProbeResult
-	if nativeResult.inputTextIncompatible {
+	if nativeResult.contentIncompatible {
 		compatResult := probeResponsesUpstream(c, info, isStream, model.ResponsesCapabilityModeNativeTextCompat)
 		nativeCompatResult = &compatResult
 		if compatResult.mode == model.ResponsesCapabilityModeNativeTextCompat {
@@ -419,7 +419,7 @@ func probeResponsesUpstream(
 	} else {
 		nativeRequest := *probeRequest
 		if mode == model.ResponsesCapabilityModeNativeTextCompat {
-			nativeRequest.Input, _, err = normalizeResponsesTextPartsForNativeCompat(nativeRequest.Input)
+			nativeRequest.Input, _, err = normalizeResponsesContentPartsForNativeCompat(nativeRequest.Input)
 		}
 		if err == nil {
 			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(probeGin, &probeInfo, nativeRequest)
@@ -469,17 +469,17 @@ func probeResponsesUpstream(
 		errorBody, _ := io.ReadAll(io.LimitReader(httpResponse.Body, 64*1024))
 		_ = httpResponse.Body.Close()
 		errorText := strings.TrimSpace(string(errorBody))
-		inputTextIncompatible := isResponsesInputTextCompatibilityError(httpResponse.StatusCode, errorText)
+		contentIncompatible := isResponsesContentCompatibilityError(httpResponse.StatusCode, errorText)
 		errorMessage := fmt.Sprintf("upstream returned HTTP %d", httpResponse.StatusCode)
-		if inputTextIncompatible {
-			errorMessage += ": Responses input_text is incompatible with the upstream ChatCompletionRequest"
+		if contentIncompatible {
+			errorMessage += ": Responses content parts are incompatible with the upstream ChatCompletionRequest"
 		}
 		return responsesCapabilityProbeResult{
-			mode:                  model.ResponsesCapabilityModeUnknown,
-			err:                   errors.New(errorMessage),
-			statusCode:            httpResponse.StatusCode,
-			route:                 isExplicitResponsesUnsupportedStatus(httpResponse.StatusCode, errorText),
-			inputTextIncompatible: inputTextIncompatible,
+			mode:                model.ResponsesCapabilityModeUnknown,
+			err:                 errors.New(errorMessage),
+			statusCode:          httpResponse.StatusCode,
+			route:               isExplicitResponsesUnsupportedStatus(httpResponse.StatusCode, errorText),
+			contentIncompatible: contentIncompatible,
 		}
 	}
 
@@ -542,17 +542,22 @@ func cloneResponsesProbeInfo(
 	return cloned
 }
 
-func isResponsesInputTextCompatibilityError(statusCode int, responseBody string) bool {
+func isResponsesContentCompatibilityError(statusCode int, responseBody string) bool {
 	if statusCode != http.StatusBadRequest && statusCode != http.StatusUnprocessableEntity {
 		return false
 	}
 	lower := strings.ToLower(responseBody)
-	if !strings.Contains(lower, "input_text") || !strings.Contains(lower, "chatcompletionrequest") {
+	if !strings.Contains(lower, "chatcompletionrequest") {
 		return false
 	}
-	return strings.Contains(lower, "input should be 'text'") ||
-		strings.Contains(lower, `input should be \"text\"`) ||
-		strings.Contains(lower, "literal_error")
+	textIncompatible := (strings.Contains(lower, "input_text") || strings.Contains(lower, "output_text")) &&
+		(strings.Contains(lower, "input should be 'text'") ||
+			strings.Contains(lower, `input should be \"text\"`) ||
+			strings.Contains(lower, "literal_error"))
+	imageIncompatible := strings.Contains(lower, "input_image") &&
+		(strings.Contains(lower, "input should be 'image_url'") ||
+			strings.Contains(lower, `input should be \"image_url\"`))
+	return textIncompatible || imageIncompatible
 }
 
 func nextResponsesRuntimeMode(
@@ -560,9 +565,12 @@ func nextResponsesRuntimeMode(
 	statusCode int,
 	responseBody string,
 ) (model.ResponsesCapabilityMode, bool) {
-	if current == model.ResponsesCapabilityModeNative &&
-		isResponsesInputTextCompatibilityError(statusCode, responseBody) {
+	contentIncompatible := isResponsesContentCompatibilityError(statusCode, responseBody)
+	if current == model.ResponsesCapabilityModeNative && contentIncompatible {
 		return model.ResponsesCapabilityModeNativeTextCompat, true
+	}
+	if current == model.ResponsesCapabilityModeNativeTextCompat && contentIncompatible {
+		return model.ResponsesCapabilityModeChatCompletions, true
 	}
 	if current != model.ResponsesCapabilityModeChatCompletions &&
 		isExplicitResponsesUnsupportedStatus(statusCode, responseBody) {

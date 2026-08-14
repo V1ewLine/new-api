@@ -75,6 +75,15 @@ func TestResponsesRequestToChatCompletionsRequestMultimodalInput(t *testing.T) {
 
 	require.Len(t, got.Messages, 1)
 	assert.Equal(t, "user", got.Messages[0].Role)
+	rawParts, ok := got.Messages[0].Content.([]any)
+	require.True(t, ok)
+	require.Len(t, rawParts, 5)
+	rawImagePart, ok := rawParts[1].(map[string]any)
+	require.True(t, ok)
+	rawImageURL, ok := rawImagePart["image_url"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "https://example.test/a.png", rawImageURL["url"])
+	assert.Equal(t, "low", rawImageURL["detail"])
 	parts := got.Messages[0].ParseContent()
 	require.Len(t, parts, 5)
 	assert.Equal(t, dto.ContentTypeText, parts[0].Type)
@@ -87,6 +96,30 @@ func TestResponsesRequestToChatCompletionsRequestMultimodalInput(t *testing.T) {
 	assert.Equal(t, "wav", parts[3].GetInputAudio().Format)
 	assert.Equal(t, dto.ContentTypeVideoUrl, parts[4].Type)
 	assert.Equal(t, "https://example.test/v.mp4", parts[4].GetVideoUrl().Url)
+}
+
+func TestResponsesImagePartToChatImageURLPreservesDataURLAndNestedDetail(t *testing.T) {
+	dataURL := "data:image/png;base64,aGVsbG8="
+	fromString, ok := responsesImagePartToChatImageURL(map[string]any{
+		"type":      "input_image",
+		"image_url": dataURL,
+		"detail":    "low",
+	}).(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, dataURL, fromString["url"])
+	assert.Equal(t, "low", fromString["detail"])
+
+	fromObject, ok := responsesImagePartToChatImageURL(map[string]any{
+		"type": "input_image",
+		"image_url": map[string]any{
+			"url":    "https://example.test/image.png",
+			"detail": "high",
+		},
+		"detail": "low",
+	}).(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "https://example.test/image.png", fromObject["url"])
+	assert.Equal(t, "high", fromObject["detail"])
 }
 
 func TestResponsesRequestToChatCompletionsRequestAssistantTextAndFunctionCallCoexist(t *testing.T) {
